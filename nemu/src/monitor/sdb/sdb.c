@@ -77,16 +77,9 @@ static int cmd_info(char *args) {
     return 0;
   }
   if (strcmp(args, "r") == 0) {
-    /* x86 */
-#ifdef __ICS_TARGET_ISA_x86__
-    printf("Registers:\n");
-    printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
-           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
-    printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
-           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
-    printf("eip 0x%08x\n", cpu.pc);
-#elif defined(__riscv) || defined(__RISCV__) || defined(__riscv__)
-    /* RISC-V: print x0..x31 with ABI names if available */
+    /* 检查目标架构并打印寄存器 */
+#ifdef CONFIG_ISA_riscv32
+    /* RISC-V 32位: 打印 x0..x31 和 pc */
     static const char *abi_names[32] = {
       "zero","ra","sp","gp","tp","t0","t1","t2",
       "s0","s1","a0","a1","a2","a3","a4","a5",
@@ -95,19 +88,37 @@ static int cmd_info(char *args) {
     };
     printf("Registers:\n");
     for (int i = 0; i < 32; i++) {
-      /* try to print using cpu.gpr[] (common in nemu riscv target) */
-      /* print both ABI name and xN */
+      printf("%-4s x%-2d 0x%08lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
+    }
+    printf("pc       0x%08lx\n", (unsigned long)cpu.pc);
+#elif defined(CONFIG_ISA_riscv64)
+    /* RISC-V 64位 */
+    static const char *abi_names[32] = {
+      "zero","ra","sp","gp","tp","t0","t1","t2",
+      "s0","s1","a0","a1","a2","a3","a4","a5",
+      "a6","a7","s2","s3","s4","s5","s6","s7",
+      "s8","s9","s10","s11","t3","t4","t5","t6"
+    };
+    printf("Registers:\n");
+    for (int i = 0; i < 32; i++) {
       printf("%-4s x%-2d 0x%016lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
     }
-    printf("pc  0x%016lx\n", (unsigned long)cpu.pc);
+    printf("pc       0x%016lx\n", (unsigned long)cpu.pc);
+#elif defined(CONFIG_ISA_x86)
+    /* x86 */
+    printf("Registers:\n");
+    printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
+           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
+    printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
+           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
+    printf("eip 0x%08x\n", cpu.pc);
 #else
     /* Generic fallback */
     printf("Registers (generic):\n");
-    printf("reg0 0x%08x  reg1 0x%08x  reg2 0x%08x  reg3 0x%08x\n",
-           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
-    printf("reg4 0x%08x  reg5 0x%08x  reg6 0x%08x  reg7 0x%08x\n",
-           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
-    printf("pc 0x%08x\n", cpu.pc);
+    for (int i = 0; i < 8; i++) {
+      printf("reg%d 0x%08lx\n", i, (unsigned long)cpu.gpr[i]);
+    }
+    printf("pc   0x%08lx\n", (unsigned long)cpu.pc);
 #endif
   } else if (strcmp(args, "w") == 0) {
     info_wp();

@@ -27,9 +27,7 @@
 #include <regex.h>
 
 enum {
-enum {
   TK_NOTYPE = 256, TK_EQ, TK_NEQ, TK_NUM, TK_HEX, TK_REG, TK_NEG, TK_DEREF
-};
 };
 
 static struct rule {
@@ -76,7 +74,7 @@ typedef struct token {
   char str[32];
 } Token;
 
-static Token tokens[32] __attribute__((used)) = {};
+static Token tokens[128] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static bool make_token(char *e) {
@@ -152,6 +150,12 @@ static int find_parentheses(int p, int q) {
 /* map register string like "$eax" to value */
 static word_t reg_str2val(const char *s, bool *ok) {
   *ok = true;
+  
+  /* 通用 pc 寄存器 */
+  if (strcmp(s, "$pc") == 0) return cpu.pc;
+  
+#ifdef CONFIG_ISA_x86
+  /* x86 registers */
   if (strcmp(s, "$eax") == 0) return reg_l(0);
   if (strcmp(s, "$ecx") == 0) return reg_l(1);
   if (strcmp(s, "$edx") == 0) return reg_l(2);
@@ -160,11 +164,52 @@ static word_t reg_str2val(const char *s, bool *ok) {
   if (strcmp(s, "$ebp") == 0) return reg_l(5);
   if (strcmp(s, "$esi") == 0) return reg_l(6);
   if (strcmp(s, "$edi") == 0) return reg_l(7);
-  if (strcmp(s, "$eip") == 0 || strcmp(s, "$pc") == 0) return cpu.pc;
-  /* try shorter names (rax/rax-like) */
-  if (strcmp(s, "$rax") == 0) return reg_l(0);
-  if (strcmp(s, "$rcx") == 0) return reg_l(1);
-  /* unknown */
+  if (strcmp(s, "$eip") == 0) return cpu.pc;
+#elif defined(CONFIG_ISA_riscv32) || defined(CONFIG_ISA_riscv64)
+  /* RISC-V registers */
+  /* x0-x31 registers */
+  for (int i = 0; i < 32; i++) {
+    char reg_name[8];
+    snprintf(reg_name, sizeof(reg_name), "$x%d", i);
+    if (strcmp(s, reg_name) == 0) return cpu.gpr[i];
+  }
+  
+  /* ABI names */
+  if (strcmp(s, "$zero") == 0) return cpu.gpr[0];
+  if (strcmp(s, "$ra") == 0) return cpu.gpr[1];
+  if (strcmp(s, "$sp") == 0) return cpu.gpr[2];
+  if (strcmp(s, "$gp") == 0) return cpu.gpr[3];
+  if (strcmp(s, "$tp") == 0) return cpu.gpr[4];
+  if (strcmp(s, "$t0") == 0) return cpu.gpr[5];
+  if (strcmp(s, "$t1") == 0) return cpu.gpr[6];
+  if (strcmp(s, "$t2") == 0) return cpu.gpr[7];
+  if (strcmp(s, "$s0") == 0 || strcmp(s, "$fp") == 0) return cpu.gpr[8];
+  if (strcmp(s, "$s1") == 0) return cpu.gpr[9];
+  if (strcmp(s, "$a0") == 0) return cpu.gpr[10];
+  if (strcmp(s, "$a1") == 0) return cpu.gpr[11];
+  if (strcmp(s, "$a2") == 0) return cpu.gpr[12];
+  if (strcmp(s, "$a3") == 0) return cpu.gpr[13];
+  if (strcmp(s, "$a4") == 0) return cpu.gpr[14];
+  if (strcmp(s, "$a5") == 0) return cpu.gpr[15];
+  if (strcmp(s, "$a6") == 0) return cpu.gpr[16];
+  if (strcmp(s, "$a7") == 0) return cpu.gpr[17];
+  if (strcmp(s, "$s2") == 0) return cpu.gpr[18];
+  if (strcmp(s, "$s3") == 0) return cpu.gpr[19];
+  if (strcmp(s, "$s4") == 0) return cpu.gpr[20];
+  if (strcmp(s, "$s5") == 0) return cpu.gpr[21];
+  if (strcmp(s, "$s6") == 0) return cpu.gpr[22];
+  if (strcmp(s, "$s7") == 0) return cpu.gpr[23];
+  if (strcmp(s, "$s8") == 0) return cpu.gpr[24];
+  if (strcmp(s, "$s9") == 0) return cpu.gpr[25];
+  if (strcmp(s, "$s10") == 0) return cpu.gpr[26];
+  if (strcmp(s, "$s11") == 0) return cpu.gpr[27];
+  if (strcmp(s, "$t3") == 0) return cpu.gpr[28];
+  if (strcmp(s, "$t4") == 0) return cpu.gpr[29];
+  if (strcmp(s, "$t5") == 0) return cpu.gpr[30];
+  if (strcmp(s, "$t6") == 0) return cpu.gpr[31];
+#endif
+  
+  /* unknown register */
   *ok = false;
   return 0;
 }

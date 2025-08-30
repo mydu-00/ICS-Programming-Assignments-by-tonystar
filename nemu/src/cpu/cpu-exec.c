@@ -17,6 +17,7 @@
 #include <cpu/decode.h>
 #include <cpu/difftest.h>
 #include <locale.h>
+#include "../monitor/sdb/sdb.h"
 
 /* The assembly code of instructions executed is only output to the screen
  * when the number of instructions executed is less than this value.
@@ -78,6 +79,13 @@ static void execute(uint64_t n) {
     g_nr_guest_inst ++;
     trace_and_difftest(&s, cpu.pc);
     if (nemu_state.state != NEMU_RUNNING) break;
+    
+    // 添加监视点检查
+    if (check_wp()) {
+      nemu_state.state = NEMU_STOP;
+      break;
+    }
+    
     IFDEF(CONFIG_DEVICE, device_update());
   }
 }

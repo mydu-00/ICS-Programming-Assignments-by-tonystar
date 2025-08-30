@@ -23,8 +23,8 @@
 typedef struct watchpoint {
   int NO;
   struct watchpoint *next;
-
-  /* expression string and last evaluated value */
+  
+  /* 添加缺失的字段 */
   char expr[256];
   word_t val;
   bool enabled;
@@ -47,11 +47,7 @@ void init_wp_pool() {
   free_ = wp_pool;
 }
 
-// some helper functions
-/* Allocate a new watchpoint for the given expression string.
- * Returns pointer to the WP on success, NULL on failure.
- * The expression is evaluated immediately and its current value stored.
- */
+/* Allocate a new watchpoint for the given expression string. */
 WP* new_wp(const char *e) {
   if (!free_) {
     printf("No free watchpoint.\n");
@@ -72,7 +68,6 @@ WP* new_wp(const char *e) {
   wp->val = expr(wp->expr, &ok);
   if (!ok) {
     /* evaluation failed: remove from active list and put back to free list */
-    /* unlink wp from head */
     if (head == wp) {
       head = wp->next;
     } else {
@@ -135,9 +130,7 @@ void info_wp() {
   }
 }
 
-/* Check all watchpoints; if any changed, report and update stored value.
- * Returns true if any watchpoint triggered (value changed).
- */
+/* Check all watchpoints; if any changed, report and update stored value. */
 bool check_wp() {
   WP *p = head;
   bool triggered = false;
@@ -150,7 +143,6 @@ bool check_wp() {
         printf("Old value = 0x%lx\nNew value = 0x%lx\n", (unsigned long)p->val, (unsigned long)v);
         p->val = v;
         triggered = true;
-        /* Do not return immediately: update all watchpoints to keep values consistent */
       } else if (!ok) {
         printf("Failed to evaluate watchpoint %d: %s\n", p->NO, p->expr);
       }
