@@ -76,86 +76,109 @@ static int cmd_info(char *args) {
     printf("Usage: info r|w\n");
     return 0;
   }
+
   if (strcmp(args, "r") == 0) {
-    /* 检查目标架构并打印寄存器 */
-#ifdef CONFIG_ISA_riscv32
-    /* RISC-V 32位: 打印 x0..x31 和 pc */
-    static const char *abi_names[32] = {
-      "zero","ra","sp","gp","tp","t0","t1","t2",
-      "s0","s1","a0","a1","a2","a3","a4","a5",
-      "a6","a7","s2","s3","s4","s5","s6","s7",
-      "s8","s9","s10","s11","t3","t4","t5","t6"
-    };
-    printf("Registers:\n");
-    for (int i = 0; i < 32; i++) {
-      printf("%-4s x%-2d 0x%08lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
-    }
-    printf("pc       0x%08lx\n", (unsigned long)cpu.pc);
-#elif defined(CONFIG_ISA_riscv64)
-    /* RISC-V 64位 */
-    static const char *abi_names[32] = {
-      "zero","ra","sp","gp","tp","t0","t1","t2",
-      "s0","s1","a0","a1","a2","a3","a4","a5",
-      "a6","a7","s2","s3","s4","s5","s6","s7",
-      "s8","s9","s10","s11","t3","t4","t5","t6"
-    };
-    printf("Registers:\n");
-    for (int i = 0; i < 32; i++) {
-      printf("%-4s x%-2d 0x%016lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
-    }
-    printf("pc       0x%016lx\n", (unsigned long)cpu.pc);
-#elif defined(CONFIG_ISA_x86)
-    /* x86 */
-    printf("Registers:\n");
-    printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
-           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
-    printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
-           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
-    printf("eip 0x%08x\n", cpu.pc);
-#else
-    /* Generic fallback */
-    printf("Registers (generic):\n");
-    for (int i = 0; i < 8; i++) {
-      printf("reg%d 0x%08lx\n", i, (unsigned long)cpu.gpr[i]);
-    }
-    printf("pc   0x%08lx\n", (unsigned long)cpu.pc);
-#endif
+    isa_reg_display();  // 直接调用框架 API！
   } else if (strcmp(args, "w") == 0) {
     info_wp();
   } else {
     printf("Unknown info subcommand '%s'\n", args);
   }
+
   return 0;
 }
+
+// static int cmd_info(char *args) {
+//   if (!args) {
+//     printf("Usage: info r|w\n");
+//     return 0;
+//   }
+//   if (strcmp(args, "r") == 0) {
+//     /* 检查目标架构并打印寄存器 */
+// #ifdef CONFIG_ISA_riscv32
+//     /* RISC-V 32位: 打印 x0..x31 和 pc */
+//     static const char *abi_names[32] = {
+//       "zero","ra","sp","gp","tp","t0","t1","t2",
+//       "s0","s1","a0","a1","a2","a3","a4","a5",
+//       "a6","a7","s2","s3","s4","s5","s6","s7",
+//       "s8","s9","s10","s11","t3","t4","t5","t6"
+//     };
+//     printf("Registers:\n");
+//     for (int i = 0; i < 32; i++) {
+//       printf("%-4s x%-2d 0x%08lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
+//     }
+//     printf("pc       0x%08lx\n", (unsigned long)cpu.pc);
+// #elif defined(CONFIG_ISA_riscv64)
+//     /* RISC-V 64位 */
+//     static const char *abi_names[32] = {
+//       "zero","ra","sp","gp","tp","t0","t1","t2",
+//       "s0","s1","a0","a1","a2","a3","a4","a5",
+//       "a6","a7","s2","s3","s4","s5","s6","s7",
+//       "s8","s9","s10","s11","t3","t4","t5","t6"
+//     };
+//     printf("Registers:\n");
+//     for (int i = 0; i < 32; i++) {
+//       printf("%-4s x%-2d 0x%016lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
+//     }
+//     printf("pc       0x%016lx\n", (unsigned long)cpu.pc);
+// #elif defined(CONFIG_ISA_x86)
+//     /* x86 */
+//     printf("Registers:\n");
+//     printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
+//            reg_l(0), reg_l(1), reg_l(2), reg_l(3));
+//     printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
+//            reg_l(4), reg_l(5), reg_l(6), reg_l(7));
+//     printf("eip 0x%08x\n", cpu.pc);
+// #else
+//     /* Generic fallback */
+//     printf("Registers (generic):\n");
+//     for (int i = 0; i < 8; i++) {
+//       printf("reg%d 0x%08lx\n", i, (unsigned long)cpu.gpr[i]);
+//     }
+//     printf("pc   0x%08lx\n", (unsigned long)cpu.pc);
+// #endif
+//   } else if (strcmp(args, "w") == 0) {
+//     info_wp();
+//   } else {
+//     printf("Unknown info subcommand '%s'\n", args);
+//   }
+//   return 0;
+// }
 
 static int cmd_x(char *args) {
   if (!args) {
     printf("Usage: x N EXPR\n");
     return 0;
   }
-  /* parse N */
-  char *tok = strtok(args, " ");
-  if (!tok) {
+
+  // 使用 strtok 分割
+  char *n_str = strtok(args, " ");
+  char *expr_str = strtok(NULL, " ");  // 获取第二个参数
+
+  if (!n_str || !expr_str) {
     printf("Usage: x N EXPR\n");
     return 0;
   }
-  int N = atoi(tok);
-  char *expr_str = tok + strlen(tok) + 1;
-  if (expr_str >= args + strlen(args)) expr_str = NULL;
-  if (!expr_str) {
-    printf("Usage: x N EXPR\n");
+
+  int N = atoi(n_str);
+  if (N <= 0) {
+    printf("N must be positive.\n");
     return 0;
   }
+
   bool ok = false;
-  word_t addr = expr(expr_str, &ok);
+  word_t addr = expr(expr_str, &ok);  // 假设你有 expr() 函数
   if (!ok) {
-    printf("Bad expression\n");
+    printf("Bad expression: %s\n", expr_str);
     return 0;
   }
+
+  // 打印内存
   for (int i = 0; i < N; i++) {
     word_t val = vaddr_read(addr + i * 4, 4);
-    printf("0x%08lx: 0x%08lx\n", (unsigned long)(addr + i * 4), (unsigned long)val);
+    printf("0x%08x: 0x%08x\n", addr + i * 4, val);
   }
+
   return 0;
 }
 
