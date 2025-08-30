@@ -18,6 +18,16 @@
 
 #include <common.h>
 
+/* expression evaluator used by monitor */
 word_t expr(char *e, bool *success);
+
+/* watchpoint API (forward declare type so header can be included by other files) */
+typedef struct watchpoint WP;
+void init_wp_pool(void);
+WP* new_wp(const char *e);
+bool delete_wp(int no);
+void info_wp(void);
+bool check_wp(void);
+WP* find_wp(int no);
 
 #endif

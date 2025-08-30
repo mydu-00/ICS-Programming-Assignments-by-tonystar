@@ -14,6 +14,9 @@
 ***************************************************************************************/
 
 #include "sdb.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define NR_WP 32
 
@@ -21,8 +24,10 @@ typedef struct watchpoint {
   int NO;
   struct watchpoint *next;
 
-  /* TODO: Add more members if necessary */
-
+  /* expression string and last evaluated value */
+  char expr[256];
+  word_t val;
+  bool enabled;
 } WP;
 
 static WP wp_pool[NR_WP] = {};
@@ -33,11 +38,134 @@ void init_wp_pool() {
   for (i = 0; i < NR_WP; i ++) {
     wp_pool[i].NO = i;
     wp_pool[i].next = (i == NR_WP - 1 ? NULL : &wp_pool[i + 1]);
+    wp_pool[i].expr[0] = '\0';
+    wp_pool[i].val = 0;
+    wp_pool[i].enabled = false;
   }
 
   head = NULL;
   free_ = wp_pool;
 }
 
-/* TODO: Implement the functionality of watchpoint */
+// some helper functions
+/* Allocate a new watchpoint for the given expression string.
+ * Returns pointer to the WP on success, NULL on failure.
+ * The expression is evaluated immediately and its current value stored.
+ */
+WP* new_wp(const char *e) {
+  if (!free_) {
+    printf("No free watchpoint.\n");
+    return NULL;
+  }
 
+  WP *wp = free_;
+  free_ = free_->next;
+
+  wp->next = head;
+  head = wp;
+
+  strncpy(wp->expr, e, sizeof(wp->expr) - 1);
+  wp->expr[sizeof(wp->expr) - 1] = '\0';
+  wp->enabled = true;
+
+  bool ok = false;
+  wp->val = expr(wp->expr, &ok);
+  if (!ok) {
+    /* evaluation failed: remove from active list and put back to free list */
+    /* unlink wp from head */
+    if (head == wp) {
+      head = wp->next;
+    } else {
+      WP *p = head;
+      while (p && p->next != wp) p = p->next;
+      if (p) p->next = wp->next;
+    }
+    wp->next = free_;
+    free_ = wp;
+    wp->enabled = false;
+    printf("Failed to evaluate expression: %s\n", e);
+    return NULL;
+  }
+
+  printf("Watchpoint %d set: %s = 0x%lx\n", wp->NO, wp->expr, (unsigned long)wp->val);
+  return wp;
+}
+
+/* Delete a watchpoint by its number. Returns true on success. */
+bool delete_wp(int no) {
+  WP *p = head, *prev = NULL;
+  while (p) {
+    if (p->NO == no) break;
+    prev = p;
+    p = p->next;
+  }
+  if (!p) {
+    printf("No watchpoint number %d.\n", no);
+    return false;
+  }
+
+  /* unlink from active list */
+  if (prev) prev->next = p->next;
+  else head = p->next;
+
+  /* reset and push to free list */
+  p->expr[0] = '\0';
+  p->val = 0;
+  p->enabled = false;
+  p->next = free_;
+  free_ = p;
+
+  printf("Deleted watchpoint %d.\n", no);
+  return true;
+}
+
+/* Print all active watchpoints */
+void info_wp() {
+  if (!head) {
+    printf("No watchpoints.\n");
+    return;
+  }
+  printf("Num Expr                          Value\n");
+  printf("-------------------------------------------------\n");
+  WP *p = head;
+  while (p) {
+    if (p->enabled)
+      printf("%-3d %-30s 0x%016lx\n", p->NO, p->expr, (unsigned long)p->val);
+    p = p->next;
+  }
+}
+
+/* Check all watchpoints; if any changed, report and update stored value.
+ * Returns true if any watchpoint triggered (value changed).
+ */
+bool check_wp() {
+  WP *p = head;
+  bool triggered = false;
+  while (p) {
+    if (p->enabled) {
+      bool ok = false;
+      word_t v = expr(p->expr, &ok);
+      if (ok && v != p->val) {
+        printf("Watchpoint %d triggered: %s\n", p->NO, p->expr);
+        printf("Old value = 0x%lx\nNew value = 0x%lx\n", (unsigned long)p->val, (unsigned long)v);
+        p->val = v;
+        triggered = true;
+        /* Do not return immediately: update all watchpoints to keep values consistent */
+      } else if (!ok) {
+        printf("Failed to evaluate watchpoint %d: %s\n", p->NO, p->expr);
+      }
+    }
+    p = p->next;
+  }
+  return triggered;
+}
+
+/* helper to find watchpoint by number (may return NULL) */
+WP* find_wp(int no) {
+  WP *p = head;
+  while (p) {
+    if (p->NO == no) return p;
+    p = p->next;
+  }
+  return NULL;
+}
