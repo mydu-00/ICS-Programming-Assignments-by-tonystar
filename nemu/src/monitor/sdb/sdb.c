@@ -18,6 +18,10 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
+#include "utils.h"
+#include <memory/vaddr.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 static int is_batch_mode = false;
 
@@ -49,10 +53,139 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  nemu_state.state = NEMU_QUIT;
   return -1;
 }
 
 static int cmd_help(char *args);
+
+/* new command handlers */
+static int cmd_si(char *args) {
+  int n = 1;
+  if (args) {
+    char *endptr = NULL;
+    n = strtol(args, &endptr, 10);
+    if (endptr == args) n = 1;
+  }
+  cpu_exec(n);
+  return 0;
+}
+
+static int cmd_info(char *args) {
+  if (!args) {
+    printf("Usage: info r|w\n");
+    return 0;
+  }
+  if (strcmp(args, "r") == 0) {
+    /* x86 */
+#ifdef __ICS_TARGET_ISA_x86__
+    printf("Registers:\n");
+    printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
+           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
+    printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
+           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
+    printf("eip 0x%08x\n", cpu.pc);
+#elif defined(__riscv) || defined(__RISCV__) || defined(__riscv__)
+    /* RISC-V: print x0..x31 with ABI names if available */
+    static const char *abi_names[32] = {
+      "zero","ra","sp","gp","tp","t0","t1","t2",
+      "s0","s1","a0","a1","a2","a3","a4","a5",
+      "a6","a7","s2","s3","s4","s5","s6","s7",
+      "s8","s9","s10","s11","t3","t4","t5","t6"
+    };
+    printf("Registers:\n");
+    for (int i = 0; i < 32; i++) {
+      /* try to print using cpu.gpr[] (common in nemu riscv target) */
+      /* print both ABI name and xN */
+      printf("%-4s x%-2d 0x%016lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
+    }
+    printf("pc  0x%016lx\n", (unsigned long)cpu.pc);
+#else
+    /* Generic fallback */
+    printf("Registers (generic):\n");
+    printf("reg0 0x%08x  reg1 0x%08x  reg2 0x%08x  reg3 0x%08x\n",
+           reg_l(0), reg_l(1), reg_l(2), reg_l(3));
+    printf("reg4 0x%08x  reg5 0x%08x  reg6 0x%08x  reg7 0x%08x\n",
+           reg_l(4), reg_l(5), reg_l(6), reg_l(7));
+    printf("pc 0x%08x\n", cpu.pc);
+#endif
+  } else if (strcmp(args, "w") == 0) {
+    info_wp();
+  } else {
+    printf("Unknown info subcommand '%s'\n", args);
+  }
+  return 0;
+}
+
+static int cmd_x(char *args) {
+  if (!args) {
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+  /* parse N */
+  char *tok = strtok(args, " ");
+  if (!tok) {
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+  int N = atoi(tok);
+  char *expr_str = tok + strlen(tok) + 1;
+  if (expr_str >= args + strlen(args)) expr_str = NULL;
+  if (!expr_str) {
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+  bool ok = false;
+  word_t addr = expr(expr_str, &ok);
+  if (!ok) {
+    printf("Bad expression\n");
+    return 0;
+  }
+  for (int i = 0; i < N; i++) {
+    word_t val = vaddr_read(addr + i * 4, 4);
+    printf("0x%08lx: 0x%08lx\n", (unsigned long)(addr + i * 4), (unsigned long)val);
+  }
+  return 0;
+}
+
+static int cmd_p(char *args) {
+  if (!args) {
+    printf("Usage: p EXPR\n");
+    return 0;
+  }
+  bool ok = false;
+  word_t val = expr(args, &ok);
+  if (!ok) {
+    printf("Bad expression\n");
+    return 0;
+  }
+  printf("0x%lx\n", (unsigned long)val);
+  return 0;
+}
+
+static int cmd_w(char *args) {
+  if (!args) {
+    printf("Usage: w EXPR\n");
+    return 0;
+  }
+  WP *wp = new_wp(args);
+  if (!wp) {
+    /* new_wp prints error */
+  }
+  return 0;
+}
+
+static int cmd_d(char *args) {
+  if (!args) {
+    printf("Usage: d N\n");
+    return 0;
+  }
+  int no = atoi(args);
+  if (!delete_wp(no)) {
+    /* delete_wp prints error */
+  }
+  return 0;
+}
 
 static struct {
   const char *name;
@@ -62,16 +195,20 @@ static struct {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
-
-  /* TODO: Add more commands */
-
+  { "si", "Step N instructions (default 1): si [N]", cmd_si },
+  { "info", "Print program state: info r|w", cmd_info },
+  { "x", "Scan memory: x N EXPR", cmd_x },
+  { "p", "Evaluate expression: p EXPR", cmd_p },
+  { "w", "Set a watchpoint: w EXPR", cmd_w },
+  { "d", "Delete a watchpoint: d N", cmd_d },
 };
 
 #define NR_CMD ARRLEN(cmd_table)
 
 static int cmd_help(char *args) {
   /* extract the first argument */
-  char *arg = strtok(NULL, " ");
+  char *arg = NULL;
+  if (args) arg = strtok(args, " ");
   int i;
 
   if (arg == NULL) {
