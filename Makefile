@@ -1,6 +1,6 @@
 STUID = 231180166
 STUNAME = 杜明阳
-TOKEN=8eaNhZoH
+TOKEN = 8eaNhZoH
 # DO NOT modify the following code!!!
 
 GITFLAGS = -q --author='tracer-ics2025 <tracer@njuics.org>' --no-verify --allow-empty
