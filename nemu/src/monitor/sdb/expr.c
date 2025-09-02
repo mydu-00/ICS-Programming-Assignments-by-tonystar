@@ -27,25 +27,39 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ, TK_NEQ, TK_NUM, TK_HEX, TK_REG, TK_NEG, TK_DEREF
+  TK_NOTYPE = 256, TK_EQ, TK_NEQ, TK_NUM, TK_HEX, TK_REG, TK_NEG, TK_DEREF, TK_VAR
 };
 
 static struct rule {
   const char *regex;
   int token_type;
 } rules[] = {
-  {" +", TK_NOTYPE},           // spaces
-  {"\\(", '('},
-  {"\\)", ')'},
-  {"==", TK_EQ},
-  {"!=", TK_NEQ},
-  {"0[xX][0-9a-fA-F]+", TK_HEX},
-  {"[0-9]+", TK_NUM},
-  {"\\$[a-zA-Z][a-zA-Z0-9]*", TK_REG},
-  {"\\+", '+'},
-  {"\\-", '-'},
-  {"\\*", '*'},
-  {"/", '/'},
+  /* 重要：空格规则必须在前面，处理任意数量的空格 */
+  {" +", TK_NOTYPE},           // spaces (one or more)
+  
+  /* 括号 */
+  {"\\(", '('},                // left parenthesis
+  {"\\)", ')'},                // right parenthesis
+  
+  /* 比较运算符 - 必须在单字符运算符之前 */
+  {"==", TK_EQ},               // equal
+  {"!=", TK_NEQ},              // not equal
+  
+  /* 数字 - 十六进制必须在十进制之前匹配 */
+  {"0[xX][0-9a-fA-F]+", TK_HEX}, // hexadecimal number
+  {"[0-9]+", TK_NUM},          // decimal number
+  
+  /* 寄存器 - 以$开头 */
+  {"\\$[a-zA-Z][a-zA-Z0-9]*", TK_REG}, // register
+  
+  /* 变量名 - 以字母或下划线开头，后跟字母、数字或下划线 */
+  {"[a-zA-Z_][a-zA-Z0-9_]*", TK_VAR}, // variable name
+  
+  /* 运算符 */
+  {"\\+", '+'},                // plus
+  {"\\-", '-'},                // minus
+  {"\\*", '*'},                // multiply/dereference
+  {"/", '/'},                  // divide
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -102,6 +116,12 @@ static bool make_token(char *e) {
           break;
         }
 
+        /* 检查token数量限制 */
+        if (nr_token >= ARRLEN(tokens)) {
+          printf("Too many tokens (max %d)\n", (int)ARRLEN(tokens));
+          return false;
+        }
+
         Token *tk = &tokens[nr_token++];
         tk->type = ttype;
         int len = substr_len < (int)sizeof(tk->str) - 1 ? substr_len : (int)sizeof(tk->str) - 1;
@@ -117,14 +137,21 @@ static bool make_token(char *e) {
       return false;
     }
   }
-  /* post process tokens: identify unary - and unary * (dereference) */
+  
+  /* 后处理：识别一元运算符 */
   for (int j = 0; j < nr_token; j++) {
-    if (tokens[j].type == '-' ) {
-      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && tokens[j-1].type != TK_REG && tokens[j-1].type != ')' )) {
+    if (tokens[j].type == '-') {
+      /* 如果是第一个token，或前面是操作符/左括号，则是一元负号 */
+      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && 
+                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR && 
+                     tokens[j-1].type != ')')) {
         tokens[j].type = TK_NEG;
       }
     } else if (tokens[j].type == '*') {
-      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && tokens[j-1].type != TK_REG && tokens[j-1].type != ')' )) {
+      /* 如果是第一个token，或前面是操作符/左括号，则是解引用 */
+      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && 
+                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR && 
+                     tokens[j-1].type != ')')) {
         tokens[j].type = TK_DEREF;
       }
     }
@@ -135,17 +162,19 @@ static bool make_token(char *e) {
 
 /* helper: find matching parenthesis from position p to q.
  * returns index of the matching ')' for '(' at pos p, or -1 */
-static int find_parentheses(int p, int q) {
-  int cnt = 0;
-  for (int i = p; i <= q; i++) {
-    if (tokens[i].type == '(') cnt++;
-    else if (tokens[i].type == ')') {
-      cnt--;
-      if (cnt == 0) return i;
-    }
-  }
-  return -1;
-}
+// static int find_parentheses(int p, int q) {
+//   if (tokens[p].type != '(') return -1;
+  
+//   int cnt = 0;
+//   for (int i = p; i <= q; i++) {
+//     if (tokens[i].type == '(') cnt++;
+//     else if (tokens[i].type == ')') {
+//       cnt--;
+//       if (cnt == 0) return i;
+//     }
+//   }
+//   return -1;
+// }
 
 /* map register string like "$eax" to value */
 static word_t reg_str2val(const char *s, bool *ok) {
@@ -214,9 +243,56 @@ static word_t reg_str2val(const char *s, bool *ok) {
   return 0;
 }
 
+/* 简单的变量查找函数 - 实际实现中需要连接到符号表 */
+static word_t var_str2val(const char *s, bool *ok) {
+  /* 这里需要实现变量查找逻辑，可能需要：
+   * 1. 连接到调试信息/符号表
+   * 2. 查找全局变量
+   * 3. 查找局部变量（需要栈帧信息）
+   * 
+   * 目前作为示例，返回一些预定义的变量
+   */
+  
+  /* 示例：一些常见的调试变量 */
+  if (strcmp(s, "number") == 0) {
+    *ok = true;
+    return 42;  /* 示例值 */
+  }
+  if (strcmp(s, "addr") == 0) {
+    *ok = true;
+    return 0x80000000;  /* 示例地址 */
+  }
+  
+  /* 未知变量 */
+  printf("Unknown variable: %s\n", s);
+  *ok = false;
+  return 0;
+}
+
+/* 检查括号是否匹配 */
+static bool check_parentheses(int p, int q) {
+  if (tokens[p].type != '(' || tokens[q].type != ')') {
+    return false;
+  }
+  
+  int cnt = 0;
+  for (int i = p; i <= q; i++) {
+    if (tokens[i].type == '(') cnt++;
+    else if (tokens[i].type == ')') {
+      cnt--;
+      if (cnt == 0 && i != q) return false;  /* 提前结束 */
+    }
+  }
+  return cnt == 0;
+}
+
 /* evaluate tokens between indices p..q (inclusive) */
 static word_t eval(int p, int q, bool *success) {
-  if (p > q) { *success = false; return 0; }
+  if (p > q) { 
+    *success = false; 
+    return 0; 
+  }
+  
   if (p == q) {
     Token *tk = &tokens[p];
     if (tk->type == TK_NUM) {
@@ -230,57 +306,69 @@ static word_t eval(int p, int q, bool *success) {
       word_t v = reg_str2val(tk->str, &ok);
       *success = ok;
       return v;
+    } else if (tk->type == TK_VAR) {
+      bool ok;
+      word_t v = var_str2val(tk->str, &ok);
+      *success = ok;
+      return v;
     } else {
       *success = false;
       return 0;
     }
   }
 
-  /* parentheses */
-  if (tokens[p].type == '(' && find_parentheses(p, q) == q) {
+  /* 检查是否被括号包围 */
+  if (check_parentheses(p, q)) {
     return eval(p + 1, q - 1, success);
   }
 
-  /* search for dominant operator (lowest precedence) */
+  /* 寻找主运算符（优先级最低的运算符） */
   int op = -1;
   int min_prec = 1000;
   int level = 0;
-  for (int i = p; i <= q; i++) {
+  
+  /* 从右到左扫描，确保同优先级运算符的左结合性 */
+  for (int i = q; i >= p; i--) {
     int t = tokens[i].type;
-    if (t == '(') { level++; continue; }
-    if (t == ')') { level--; continue; }
-    if (level > 0) continue;
+    if (t == ')') { level++; continue; }
+    if (t == '(') { level--; continue; }
+    if (level > 0) continue;  /* 在括号内，跳过 */
 
-    int prec = 100;
-    if (t == TK_EQ || t == TK_NEQ) prec = 1;
-    else if (t == '+' || t == '-') prec = 2;
-    else if (t == '*' || t == '/') prec = 3;
-    else if (t == TK_NEG || t == TK_DEREF) prec = 4; /* unary highest precedence */
+    int prec = 100;  /* 默认高优先级 */
+    if (t == TK_EQ || t == TK_NEQ) prec = 1;      /* 比较运算符，最低优先级 */
+    else if (t == '+' || t == '-') prec = 2;       /* 加减法 */
+    else if (t == '*' || t == '/') prec = 3;       /* 乘除法 */
+    else if (t == TK_NEG || t == TK_DEREF) prec = 4; /* 一元运算符，最高优先级 */
+    else continue;  /* 不是运算符，跳过 */
 
-    if (prec <= min_prec) {
+    if (prec < min_prec || (prec == min_prec && (t == TK_NEG || t == TK_DEREF))) {
       min_prec = prec;
       op = i;
     }
   }
 
-  if (op == -1) { *success = false; return 0; }
+  if (op == -1) { 
+    printf("No operator found in range [%d, %d]\n", p, q);
+    *success = false; 
+    return 0; 
+  }
 
-  /* unary operators */
+  /* 处理一元运算符 */
   if (tokens[op].type == TK_NEG) {
-    bool ok2 = false;
-    word_t val = eval(op + 1, q, &ok2);
-    if (!ok2) { *success = false; return 0; }
+    bool ok = false;
+    word_t val = eval(op + 1, q, &ok);
+    if (!ok) { *success = false; return 0; }
     *success = true;
     return (word_t)(-(int64_t)val);
   } else if (tokens[op].type == TK_DEREF) {
-    bool ok2 = false;
-    word_t addr = eval(op + 1, q, &ok2);
-    if (!ok2) { *success = false; return 0; }
+    bool ok = false;
+    word_t addr = eval(op + 1, q, &ok);
+    if (!ok) { *success = false; return 0; }
     *success = true;
     return vaddr_read(addr, 4);
   }
 
-  /* binary operators */
+  /* 处理二元运算符 */
   bool ok1 = false, ok2 = false;
   word_t val1 = eval(p, op - 1, &ok1);
   word_t val2 = eval(op + 1, q, &ok2);
@@ -291,10 +379,20 @@ static word_t eval(int p, int q, bool *success) {
     case '+': *success = true; return val1 + val2;
     case '-': *success = true; return val1 - val2;
     case '*': *success = true; return val1 * val2;
-    case '/': if (val2 == 0) { *success = false; return 0; } *success = true; return val1 / val2;
-    case TK_EQ: *success = true; return (val1 == val2);
-    case TK_NEQ: *success = true; return (val1 != val2);
-    default: *success = false; return 0;
+    case '/': 
+      if (val2 == 0) { 
+        printf("Division by zero\n");
+        *success = false; 
+        return 0; 
+      } 
+      *success = true; 
+      return val1 / val2;
+    case TK_EQ: *success = true; return (val1 == val2) ? 1 : 0;
+    case TK_NEQ: *success = true; return (val1 != val2) ? 1 : 0;
+    default: 
+      printf("Unknown operator type: %d\n", t);
+      *success = false; 
+      return 0;
   }
 }
 
@@ -303,7 +401,18 @@ word_t expr(char *e, bool *success) {
     *success = false;
     return 0;
   }
-  if (nr_token == 0) { *success = false; return 0; }
+  
+  if (nr_token == 0) { 
+    printf("Empty expression\n");
+    *success = false; 
+    return 0; 
+  }
+
+  /* 调试输出：显示解析出的tokens */
+  Log("Parsed %d tokens:", nr_token);
+  for (int i = 0; i < nr_token; i++) {
+    Log("Token %d: type=%d, str='%s'", i, tokens[i].type, tokens[i].str);
+  }
 
   word_t result = eval(0, nr_token - 1, success);
   return result;
