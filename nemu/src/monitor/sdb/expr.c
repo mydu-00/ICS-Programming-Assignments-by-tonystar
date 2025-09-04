@@ -85,10 +85,11 @@ void init_regex() {
 
 typedef struct token {
   int type;
-  char str[32];
+  char str[128]; /* 更大的缓冲以容纳长变量名/数字/子表达式片段 */
 } Token;
 
-static Token tokens[128] __attribute__((used)) = {};
+/* 增大 tokens 数量以支持长表达式 */
+static Token tokens[2048] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static bool make_token(char *e) {
