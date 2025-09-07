@@ -40,7 +40,6 @@ static void append_spaces() {
 /* generate a random unsigned number literal as decimal or hex */
 static bool gen_number_literal(bool nonzero) {
   unsigned v;
-  /* choose range to avoid extremely large decimal strings when printing */
   if (rand() % 4 == 0) {
     /* hex */
     do { v = (unsigned)rand(); } while (nonzero && v == 0);
@@ -58,7 +57,7 @@ static bool gen_number_literal(bool nonzero) {
   }
 }
 
-/* recursively generate expression. depth controls size, nonzero_right indicates we must produce non-zero value. */
+/* recursively generate expression. depth controls size, nonzero_required indicates we must produce non-zero value. */
 static bool gen_expr(int depth, bool nonzero_required) {
   if (depth <= 0) {
     /* leaf: produce a number literal (honor nonzero requirement) */
@@ -75,9 +74,8 @@ static bool gen_expr(int depth, bool nonzero_required) {
     if (!append_str(")")) return false;
     return true;
   } else if (choice == 1) {
-    /* unary minus */
-    if (!append_str("-")) return false;
-    append_spaces();
+    /* unary minus: ensure a space after '-' to avoid forming '--' with previous/succeeding '-' */
+    if (!append_str("- ")) return false;
     return gen_expr(depth - 1, nonzero_required);
   } else {
     /* binary operator */
@@ -85,24 +83,21 @@ static bool gen_expr(int depth, bool nonzero_required) {
     int op = rand() % 4; /* 0:+ 1:- 2:* 3:/ */
     int left_depth = depth - 1;
     int right_depth = depth - 1;
-    /* for more variety sometimes make one side shallow */
     if (rand() % 2) left_depth = rand() % depth;
     if (rand() % 2) right_depth = rand() % depth;
 
     /* left */
     if (!gen_expr(left_depth, false)) return false;
-    append_spaces();
-
-    /* operator */
+    /* operator: insert with spaces around to avoid token merging (e.g. "--", "++") */
     const char *ops = "+-*/";
-    char tmpop[2] = { ops[op], '\0' };
-    if (!append_str(tmpop)) return false;
-    append_spaces();
+    char opbuf[4];
+    snprintf(opbuf, sizeof(opbuf), " %c ", ops[op]);
+    if (!append_str(opbuf)) return false;
 
     /* right */
     if (op == 3) {
       /* division: make sure right side is non-zero literal or expression forced non-zero.
-         To be simple and safe, produce a non-zero literal with some probability, else a non-zero subtree. */
+         To be simple and safe, produce a non-zero literal with high probability, else a non-zero subtree. */
       if (rand() % 3 != 0) {
         /* non-zero literal */
         if (!gen_number_literal(true)) return false;
@@ -118,19 +113,15 @@ static bool gen_expr(int depth, bool nonzero_required) {
 
 static void gen_rand_expr() {
   buf[0] = '\0';
-  /* choose random target complexity */
-  int depth = 1 + rand() % 4; /* depth 1..4 by default; adjust as needed */
-  /* also sometimes produce longer by increasing depth */
+  int depth = 1 + rand() % 4;
   if (rand() % 10 == 0) depth += rand() % 4;
 
-  /* generate until success or buffer would overflow */
   if (!gen_expr(depth, false)) {
-    /* reset and fallback to a simple literal */
     buf[0] = '\0';
     gen_number_literal(false);
   }
 
-  /* trim leading/trailing spaces (just in case) */
+  /* trim leading/trailing spaces */
   char *p = buf;
   while (*p == ' ') p++;
   if (p != buf) memmove(buf, p, strlen(p) + 1);
@@ -146,11 +137,10 @@ int main(int argc, char *argv[]) {
     /* if first arg is number of tests, keep seed random */
   }
   srand(seed);
-  fprintf(stderr, "seed=%d\n", seed); /* print seed so results reproducible */
+  fprintf(stderr, "seed=%d\n", seed);
 
   int loop = 1;
   if (argc > 1) {
-    /* handle both: ./gen-expr N  or ./gen-expr -seed S N */
     if (strcmp(argv[1], "-seed") == 0) {
       if (argc > 3) sscanf(argv[3], "%d", &loop);
     } else {
@@ -158,8 +148,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int i;
-  for (i = 0; i < loop; i ++) {
+  for (int i = 0; i < loop; i ++) {
     gen_rand_expr();
 
     sprintf(code_buf, code_format, buf);
@@ -171,8 +160,7 @@ int main(int argc, char *argv[]) {
 
     int ret = system("gcc /tmp/.code.c -O2 -w -o /tmp/.expr");
     if (ret != 0) {
-      /* compilation failed (should be rare) -- skip this case */
-      i--; /* try again to keep count stable */
+      i--;
       continue;
     }
 
@@ -183,7 +171,6 @@ int main(int argc, char *argv[]) {
     ret = fscanf(fp, "%u", &result);
     pclose(fp);
     if (ret != 1) {
-      /* execution/scan failed -- skip and retry */
       i--;
       continue;
     }
