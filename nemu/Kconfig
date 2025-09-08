@@ -195,8 +195,6 @@ config DIFFTEST_REF_NAME
 config WATCHPOINT
   bool "Enable watchpoint support"
   default y
-  help
-    Enable this to support watchpoints in NEMU. Disable to improve performance if you don't need watchpoints.
 
 endmenu
 
