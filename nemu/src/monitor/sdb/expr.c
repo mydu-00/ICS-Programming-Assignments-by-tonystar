@@ -27,7 +27,7 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ, TK_NEQ, TK_NUM, TK_HEX, TK_REG, TK_NEG, TK_DEREF, TK_VAR
+  TK_NOTYPE = 256, TK_EQ, TK_NEQ, TK_AND, TK_NUM, TK_HEX, TK_REG, TK_NEG, TK_DEREF, TK_VAR
 };
 
 static struct rule {
@@ -44,6 +44,7 @@ static struct rule {
   /* 比较运算符 - 必须在单字符运算符之前 */
   {"==", TK_EQ},               // equal
   {"!=", TK_NEQ},              // not equal
+  {"&&", TK_AND}, // 新增逻辑与
   
   /* 数字 - 十六进制必须在十进制之前匹配 */
   {"0[xX][0-9a-fA-F]+", TK_HEX}, // hexadecimal number
@@ -179,69 +180,8 @@ static bool make_token(char *e) {
 
 /* map register string like "$eax" to value */
 static word_t reg_str2val(const char *s, bool *ok) {
-  *ok = true;
-  
-  /* 通用 pc 寄存器 */
-  if (strcmp(s, "$pc") == 0) return cpu.pc;
-  
-#ifdef CONFIG_ISA_x86
-  /* x86 registers */
-  if (strcmp(s, "$eax") == 0) return reg_l(0);
-  if (strcmp(s, "$ecx") == 0) return reg_l(1);
-  if (strcmp(s, "$edx") == 0) return reg_l(2);
-  if (strcmp(s, "$ebx") == 0) return reg_l(3);
-  if (strcmp(s, "$esp") == 0) return reg_l(4);
-  if (strcmp(s, "$ebp") == 0) return reg_l(5);
-  if (strcmp(s, "$esi") == 0) return reg_l(6);
-  if (strcmp(s, "$edi") == 0) return reg_l(7);
-  if (strcmp(s, "$eip") == 0) return cpu.pc;
-#elif defined(CONFIG_ISA_riscv32) || defined(CONFIG_ISA_riscv64)
-  /* RISC-V registers */
-  /* x0-x31 registers */
-  for (int i = 0; i < 32; i++) {
-    char reg_name[8];
-    snprintf(reg_name, sizeof(reg_name), "$x%d", i);
-    if (strcmp(s, reg_name) == 0) return cpu.gpr[i];
-  }
-  
-  /* ABI names */
-  if (strcmp(s, "$zero") == 0) return cpu.gpr[0];
-  if (strcmp(s, "$ra") == 0) return cpu.gpr[1];
-  if (strcmp(s, "$sp") == 0) return cpu.gpr[2];
-  if (strcmp(s, "$gp") == 0) return cpu.gpr[3];
-  if (strcmp(s, "$tp") == 0) return cpu.gpr[4];
-  if (strcmp(s, "$t0") == 0) return cpu.gpr[5];
-  if (strcmp(s, "$t1") == 0) return cpu.gpr[6];
-  if (strcmp(s, "$t2") == 0) return cpu.gpr[7];
-  if (strcmp(s, "$s0") == 0 || strcmp(s, "$fp") == 0) return cpu.gpr[8];
-  if (strcmp(s, "$s1") == 0) return cpu.gpr[9];
-  if (strcmp(s, "$a0") == 0) return cpu.gpr[10];
-  if (strcmp(s, "$a1") == 0) return cpu.gpr[11];
-  if (strcmp(s, "$a2") == 0) return cpu.gpr[12];
-  if (strcmp(s, "$a3") == 0) return cpu.gpr[13];
-  if (strcmp(s, "$a4") == 0) return cpu.gpr[14];
-  if (strcmp(s, "$a5") == 0) return cpu.gpr[15];
-  if (strcmp(s, "$a6") == 0) return cpu.gpr[16];
-  if (strcmp(s, "$a7") == 0) return cpu.gpr[17];
-  if (strcmp(s, "$s2") == 0) return cpu.gpr[18];
-  if (strcmp(s, "$s3") == 0) return cpu.gpr[19];
-  if (strcmp(s, "$s4") == 0) return cpu.gpr[20];
-  if (strcmp(s, "$s5") == 0) return cpu.gpr[21];
-  if (strcmp(s, "$s6") == 0) return cpu.gpr[22];
-  if (strcmp(s, "$s7") == 0) return cpu.gpr[23];
-  if (strcmp(s, "$s8") == 0) return cpu.gpr[24];
-  if (strcmp(s, "$s9") == 0) return cpu.gpr[25];
-  if (strcmp(s, "$s10") == 0) return cpu.gpr[26];
-  if (strcmp(s, "$s11") == 0) return cpu.gpr[27];
-  if (strcmp(s, "$t3") == 0) return cpu.gpr[28];
-  if (strcmp(s, "$t4") == 0) return cpu.gpr[29];
-  if (strcmp(s, "$t5") == 0) return cpu.gpr[30];
-  if (strcmp(s, "$t6") == 0) return cpu.gpr[31];
-#endif
-  
-  /* unknown register */
-  *ok = false;
-  return 0;
+  // s形如"$a0"
+  return isa_reg_str2val(s, ok);
 }
 
 /* 简单的变量查找函数 - 实际实现中需要连接到符号表 */
@@ -327,46 +267,45 @@ static word_t eval(int p, int q, bool *success) {
   int op = -1;
   int min_prec = 1000;
   int level = 0;
-  
-  /* 从右到左扫描，确保同优先级运算符的左结合性 */
-  for (int i = q; i >= p; i--) {
+
+  for (int i = p; i <= q; i++) {
     int t = tokens[i].type;
-    if (t == ')') { level++; continue; }
-    if (t == '(') { level--; continue; }
-    if (level > 0) continue;  /* 在括号内，跳过 */
+    if (t == '(') { level++; continue; }
+    if (t == ')') { level--; continue; }
+    if (level > 0) continue;
 
-    int prec = 100;  /* 默认高优先级 */
-    if (t == TK_EQ || t == TK_NEQ) prec = 1;      /* 比较运算符，最低优先级 */
-    else if (t == '+' || t == '-') prec = 2;       /* 加减法 */
-    else if (t == '*' || t == '/') prec = 3;       /* 乘除法 */
-    else if (t == TK_NEG || t == TK_DEREF) prec = 4; /* 一元运算符，最高优先级 */
-    else continue;  /* 不是运算符，跳过 */
+    int prec = 100;
+    if (t == TK_AND) prec = 0;
+    else if (t == TK_EQ || t == TK_NEQ) prec = 1;
+    else if (t == '+' || t == '-') prec = 2;
+    else if (t == '*' || t == '/') prec = 3;
+    else continue;
 
-    if (prec < min_prec || (prec == min_prec && (t == TK_NEG || t == TK_DEREF))) {
+    if (prec <= min_prec) {
       min_prec = prec;
       op = i;
     }
   }
 
-  if (op == -1) { 
-    printf("No operator found in range [%d, %d]\n", p, q);
-    *success = false; 
-    return 0; 
-  }
-
-  /* 处理一元运算符 */
-  if (tokens[op].type == TK_NEG) {
-    bool ok = false;
-    word_t val = eval(op + 1, q, &ok);
-    if (!ok) { *success = false; return 0; }
-    *success = true;
-    return (word_t)(-(int64_t)val);
-  } else if (tokens[op].type == TK_DEREF) {
-    bool ok = false;
-    word_t addr = eval(op + 1, q, &ok);
-    if (!ok) { *success = false; return 0; }
-    *success = true;
-    return vaddr_read(addr, 4);
+  // 如果没有二元运算符，检查是否是一元运算符
+  if (op == -1) {
+    if (tokens[p].type == TK_NEG) {
+      bool ok = false;
+      word_t val = eval(p + 1, q, &ok);
+      if (!ok) { *success = false; return 0; }
+      *success = true;
+      return (word_t)(-(int64_t)val);
+    } else if (tokens[p].type == TK_DEREF) {
+      bool ok = false;
+      word_t addr = eval(p + 1, q, &ok);
+      if (!ok) { *success = false; return 0; }
+      *success = true;
+      return vaddr_read(addr, 4);
+    } else {
+      printf("No operator found in range [%d, %d]\n", p, q);
+      *success = false;
+      return 0;
+    }
   }
 
   /* 处理二元运算符 */
@@ -377,22 +316,23 @@ static word_t eval(int p, int q, bool *success) {
 
   int t = tokens[op].type;
   switch (t) {
+    case TK_AND: *success = true; return (val1 && val2) ? 1 : 0;
+    case TK_EQ: *success = true; return (val1 == val2) ? 1 : 0;
+    case TK_NEQ: *success = true; return (val1 != val2) ? 1 : 0;
     case '+': *success = true; return val1 + val2;
     case '-': *success = true; return val1 - val2;
     case '*': *success = true; return val1 * val2;
-    case '/': 
-      if (val2 == 0) { 
+    case '/':
+      if (val2 == 0) {
         printf("Division by zero\n");
-        *success = false; 
-        return 0; 
-      } 
-      *success = true; 
+        *success = false;
+        return 0;
+      }
+      *success = true;
       return val1 / val2;
-    case TK_EQ: *success = true; return (val1 == val2) ? 1 : 0;
-    case TK_NEQ: *success = true; return (val1 != val2) ? 1 : 0;
-    default: 
+    default:
       printf("Unknown operator type: %d\n", t);
-      *success = false; 
+      *success = false;
       return 0;
   }
 }
