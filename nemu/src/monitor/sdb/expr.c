@@ -274,7 +274,8 @@ static word_t eval(int p, int q, bool *success) {
     else if (t == '*' || t == '/') prec = 3;
     else continue;
 
-    if (prec < min_prec) { // 左结合
+    // 左结合：当优先级相同或更低时更新
+    if (prec <= min_prec) {
       min_prec = prec;
       op = i;
     }
