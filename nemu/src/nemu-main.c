@@ -17,8 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-/* forward declaration of expr and init from sdb/expr.c */
-extern void init_regex(void); /* ensure regex compiled for expr */
+
+/* expr() 和 init_regex() 在 sdb/expr.c 中 */
+extern void init_regex(void);
 extern word_t expr(char *e, bool *success);
 
 void init_monitor(int, char *[]);
@@ -27,36 +28,24 @@ void engine_start();
 int is_exit_status_bad();
 
 int main(int argc, char *argv[]) {
-  /* If first argument is a file, run expr test harness mode */
+  /* 测试模式：如果第一个参数是一个可读文件，则把它当作生成器的 input */
   if (argc > 1) {
     FILE *f = fopen(argv[1], "r");
     if (f) {
-      /* initialize minimal parts needed by expr() */
-      init_regex();
-
+      init_regex(); /* 确保正则编译，expr() 依赖它 */
       char line[65536];
       unsigned total = 0, passed = 0, failed = 0;
       while (fgets(line, sizeof(line), f)) {
-        /* skip empty lines */
         char *p = line;
         while (*p == ' ' || *p == '\t') p++;
         if (*p == '\0' || *p == '\n') continue;
-
-        /* line format: "<unsigned> <expression...>\n" */
-        unsigned expect = 0;
-        char *expr_str = NULL;
-
-        /* find first space separating number and expression */
+        /* 格式: "<unsigned> <expression...>" */
         char *sp = strchr(p, ' ');
         if (!sp) continue;
         *sp = '\0';
-        expect = (unsigned)strtoul(p, NULL, 10);
-        expr_str = sp + 1;
-        /* trim trailing newline */
-        char *nl = strchr(expr_str, '\n');
-        if (nl) *nl = '\0';
-
-        /* evaluate using NEMU expr() */
+        unsigned expect = (unsigned)strtoul(p, NULL, 10);
+        char *expr_str = sp + 1;
+        char *nl = strchr(expr_str, '\n'); if (nl) *nl = '\0';
         bool ok = false;
         word_t v = expr(expr_str, &ok);
         total++;
@@ -74,18 +63,16 @@ int main(int argc, char *argv[]) {
       printf("TEST RESULT: total=%u passed=%u failed=%u\n", total, passed, failed);
       return failed ? 1 : 0;
     }
-    /* else no file: fallthrough to normal init */
+    /* 若不是可读文件，继续正常启动 */
   }
 
-  /* Initialize the monitor. */
+  /* 原有 normal init/运行流程 */
 #ifdef CONFIG_TARGET_AM
   am_init_monitor();
 #else
   init_monitor(argc, argv);
 #endif
 
-  /* Start engine. */
   engine_start();
-
   return is_exit_status_bad();
 }
