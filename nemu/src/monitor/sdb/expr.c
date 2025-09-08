@@ -143,16 +143,14 @@ static bool make_token(char *e) {
   /* 后处理：识别一元运算符 */
   for (int j = 0; j < nr_token; j++) {
     if (tokens[j].type == '-') {
-      /* 如果是第一个token，或前面是操作符/左括号，则是一元负号 */
-      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && 
-                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR && 
+      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX &&
+                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR &&
                      tokens[j-1].type != ')')) {
         tokens[j].type = TK_NEG;
       }
     } else if (tokens[j].type == '*') {
-      /* 如果是第一个token，或前面是操作符/左括号，则是解引用 */
-      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX && 
-                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR && 
+      if (j == 0 || (tokens[j-1].type != TK_NUM && tokens[j-1].type != TK_HEX &&
+                     tokens[j-1].type != TK_REG && tokens[j-1].type != TK_VAR &&
                      tokens[j-1].type != ')')) {
         tokens[j].type = TK_DEREF;
       }
