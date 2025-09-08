@@ -293,6 +293,8 @@ static word_t eval(int p, int q, bool *success) {
       bool ok = false;
       word_t addr = eval(p + 1, q, &ok);
       if (!ok) { *success = false; return 0; }
+      // 如果地址小于0x80000000，自动加偏移
+      if (addr < 0x80000000) addr += 0x80000000;
       *success = true;
       return vaddr_read(addr, 4);
     } else {
