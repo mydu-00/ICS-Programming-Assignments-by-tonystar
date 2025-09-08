@@ -212,17 +212,12 @@ static word_t var_str2val(const char *s, bool *ok) {
 
 /* 检查括号是否匹配 */
 static bool check_parentheses(int p, int q) {
-  if (tokens[p].type != '(' || tokens[q].type != ')') {
-    return false;
-  }
-  
+  if (tokens[p].type != '(' || tokens[q].type != ')') return false;
   int cnt = 0;
   for (int i = p; i <= q; i++) {
     if (tokens[i].type == '(') cnt++;
-    else if (tokens[i].type == ')') {
-      cnt--;
-      if (cnt == 0 && i != q) return false;  /* 提前结束 */
-    }
+    else if (tokens[i].type == ')') cnt--;
+    if (cnt == 0 && i < q) return false;
   }
   return cnt == 0;
 }
@@ -263,7 +258,7 @@ static word_t eval(int p, int q, bool *success) {
     return eval(p + 1, q - 1, success);
   }
 
-  /* 寻找主运算符（优先级最低的运算符） */
+  /* 寻找主运算符（优先级最低的运算符，左结合） */
   int op = -1;
   int min_prec = 1000;
   int level = 0;
@@ -281,7 +276,7 @@ static word_t eval(int p, int q, bool *success) {
     else if (t == '*' || t == '/') prec = 3;
     else continue;
 
-    if (prec <= min_prec) {
+    if (prec < min_prec) { // 左结合
       min_prec = prec;
       op = i;
     }
@@ -290,6 +285,7 @@ static word_t eval(int p, int q, bool *success) {
   // 如果没有二元运算符，检查是否是一元运算符
   if (op == -1) {
     if (tokens[p].type == TK_NEG) {
+      // 只允许p==q或p+1<=q
       bool ok = false;
       word_t val = eval(p + 1, q, &ok);
       if (!ok) { *success = false; return 0; }
