@@ -88,63 +88,6 @@ static int cmd_info(char *args) {
   return 0;
 }
 
-// static int cmd_info(char *args) {
-//   if (!args) {
-//     printf("Usage: info r|w\n");
-//     return 0;
-//   }
-//   if (strcmp(args, "r") == 0) {
-//     /* 检查目标架构并打印寄存器 */
-// #ifdef CONFIG_ISA_riscv32
-//     /* RISC-V 32位: 打印 x0..x31 和 pc */
-//     static const char *abi_names[32] = {
-//       "zero","ra","sp","gp","tp","t0","t1","t2",
-//       "s0","s1","a0","a1","a2","a3","a4","a5",
-//       "a6","a7","s2","s3","s4","s5","s6","s7",
-//       "s8","s9","s10","s11","t3","t4","t5","t6"
-//     };
-//     printf("Registers:\n");
-//     for (int i = 0; i < 32; i++) {
-//       printf("%-4s x%-2d 0x%08lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
-//     }
-//     printf("pc       0x%08lx\n", (unsigned long)cpu.pc);
-// #elif defined(CONFIG_ISA_riscv64)
-//     /* RISC-V 64位 */
-//     static const char *abi_names[32] = {
-//       "zero","ra","sp","gp","tp","t0","t1","t2",
-//       "s0","s1","a0","a1","a2","a3","a4","a5",
-//       "a6","a7","s2","s3","s4","s5","s6","s7",
-//       "s8","s9","s10","s11","t3","t4","t5","t6"
-//     };
-//     printf("Registers:\n");
-//     for (int i = 0; i < 32; i++) {
-//       printf("%-4s x%-2d 0x%016lx\n", abi_names[i], i, (unsigned long)cpu.gpr[i]);
-//     }
-//     printf("pc       0x%016lx\n", (unsigned long)cpu.pc);
-// #elif defined(CONFIG_ISA_x86)
-//     /* x86 */
-//     printf("Registers:\n");
-//     printf("eax 0x%08x  ecx 0x%08x  edx 0x%08x  ebx 0x%08x\n",
-//            reg_l(0), reg_l(1), reg_l(2), reg_l(3));
-//     printf("esp 0x%08x  ebp 0x%08x  esi 0x%08x  edi 0x%08x\n",
-//            reg_l(4), reg_l(5), reg_l(6), reg_l(7));
-//     printf("eip 0x%08x\n", cpu.pc);
-// #else
-//     /* Generic fallback */
-//     printf("Registers (generic):\n");
-//     for (int i = 0; i < 8; i++) {
-//       printf("reg%d 0x%08lx\n", i, (unsigned long)cpu.gpr[i]);
-//     }
-//     printf("pc   0x%08lx\n", (unsigned long)cpu.pc);
-// #endif
-//   } else if (strcmp(args, "w") == 0) {
-//     info_wp();
-//   } else {
-//     printf("Unknown info subcommand '%s'\n", args);
-//   }
-//   return 0;
-// }
-
 static int cmd_x(char *args) {
   if (!args) {
     printf("Usage: x N EXPR\n");
@@ -193,7 +136,7 @@ static int cmd_p(char *args) {
     printf("Bad expression\n");
     return 0;
   }
-  printf("0x%lx\n", (unsigned long)val);
+  printf("%ld\n", (unsigned long)val);
   return 0;
 }
 
