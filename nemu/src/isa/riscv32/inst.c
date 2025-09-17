@@ -17,6 +17,7 @@
 #include <cpu/cpu.h>
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
+#include <stdio.h>
 
 #define R(i) gpr(i)
 #define Mr vaddr_read
@@ -106,7 +107,10 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , I, if (src1 < src2) s->dnpc = s->pc + imm;);
   INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , I, if (src1 >= src2) s->dnpc = s->pc + imm;);
 
-  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10)));
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, { 
+    printf("ebreak at pc = 0x%08x\n", s->pc); fflush(stdout);
+    NEMUTRAP(s->pc, R(10));
+  });
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   INSTPAT_END();
 
