@@ -12,6 +12,7 @@ void putch(char ch) {
 
 __attribute__((noinline))
 void halt(int code) {
+  asm volatile("ebreak");
   while (1);
 }
 
