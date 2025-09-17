@@ -13,7 +13,7 @@ void putch(char ch) {
 
 void halt(int code) {
   asm volatile("ebreak");
-  while (1); // 保证不会返回，消除警告
+  while(1);
 }
 
 void _trm_init() {
