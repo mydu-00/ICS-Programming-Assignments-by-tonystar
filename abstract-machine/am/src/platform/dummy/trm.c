@@ -6,5 +6,5 @@ void putch(char ch) {
 }
 
 void halt(int code) {
-  while (1);
+  asm volatile("ebreak");
 }

@@ -12,10 +12,8 @@ void putch(char ch) {
 }
 
 void halt(int code) {
-  nemu_trap(code);
-
-  // should not reach here
-  while (1);
+  asm volatile("ebreak");
+  while (1); // 保证不会返回，消除警告
 }
 
 void _trm_init() {
