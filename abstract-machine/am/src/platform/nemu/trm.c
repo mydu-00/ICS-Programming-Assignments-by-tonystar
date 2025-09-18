@@ -12,8 +12,8 @@ void putch(char ch) {
 }
 
 void halt(int code) {
-  //nemu_trap(code);
-  asm volatile("ebreak");
+  nemu_trap(code);
+  //asm volatile("ebreak");
   while(1);
 }
 
