@@ -1,6 +1,5 @@
 #include <am.h>
 #include <nemu.h>
-#include <stdio.h>
 
 extern char _heap_start;
 int main(const char *args);
@@ -13,8 +12,7 @@ void putch(char ch) {
 }
 
 void halt(int code) {
-  // const char *msg = "halt called\n";
-  // for (const char *p = msg; *p; p++) putch(*p);
+  //nemu_trap(code);
   asm volatile("ebreak");
   while(1);
 }
