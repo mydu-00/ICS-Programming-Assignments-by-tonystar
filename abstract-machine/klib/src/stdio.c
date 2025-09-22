@@ -31,6 +31,10 @@ static void out_puts(char **outp, size_t *rem, int *written, const char *s) {
 static char *u32toa(unsigned long val, unsigned int base, char *buf_end) {
   static const char digits[] = "0123456789abcdef";
   char *p = buf_end;
+
+  /* ensure there is a terminating NUL at the end of the buffer */
+  *--p = '\0';
+
   if (val == 0) {
     *--p = '0';
     return p;
