@@ -133,14 +133,15 @@ int snprintf(char *out, size_t n, const char *fmt, ...) {
 
 int vsprintf(char *out, const char *fmt, va_list ap) {
   /* pass very large n so vsnprintf won't truncate (semantic of vsprintf) */
-  return vsnprintf(out, (size_t)-1, fmt, ap);
+  return vsnprintf(out, (size_t)SIZE_MAX, fmt, ap);
 }
 
 int sprintf(char *out, const char *fmt, ...) {
   int ret;
   va_list ap;
   va_start(ap, fmt);
-  ret = vsprintf(out, fmt, ap);
+  /* sprintf writes into out assuming caller provided enough space */
+  ret = vsnprintf(out, (size_t)SIZE_MAX, fmt, ap);
   va_end(ap);
   return ret;
 }
