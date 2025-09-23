@@ -2,7 +2,7 @@
 #include <string.h>
 #include <common.h>
 #include "utils/iringbuf.h"
-#include <utils.h> /* or include <common.h> if log_write declared there */
+#include "utils.h"   /* log_write */
 
 #ifdef CONFIG_ITRACE
 
@@ -10,12 +10,11 @@
 #define ITRACE_LINE_MAX 128
 
 static char ringbuf[ITRACE_RINGBUF_SIZE][ITRACE_LINE_MAX];
-static int ring_head = 0;   /* next write index */
-static int ring_count = 0;  /* number of valid entries */
+static int ring_head = 0;
+static int ring_count = 0;
 
 void iringbuf_init(void) {
-  ring_head = 0;
-  ring_count = 0;
+  ring_head = 0; ring_count = 0;
   memset(ringbuf, 0, sizeof(ringbuf));
 }
 
@@ -32,8 +31,12 @@ void iringbuf_dump(void) {
   for (int i = 0; i < ring_count; i++) {
     int idx = (start + i) % ITRACE_RINGBUF_SIZE;
     const char *prefix = (i == ring_count - 1) ? "--> " : "    ";
-    log_write("%s%s\n", prefix, ringbuf[idx]); /* use log_write so it goes to nemu-log.txt */
+    /* Write to nemu log */
+    log_write("%s%s\n", prefix, ringbuf[idx]);
+    /* Also print to terminal (stderr) so you see it immediately */
+    fprintf(stderr, "%s%s\n", prefix, ringbuf[idx]);
   }
+  /* flush stderr to ensure immediate output */
+  fflush(stderr);
 }
-
 #endif /* CONFIG_ITRACE */
