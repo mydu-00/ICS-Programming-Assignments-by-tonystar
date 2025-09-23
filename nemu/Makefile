@@ -64,18 +64,3 @@ RUN_TARGET :=
 # Include rules to build NEMU
 include $(NEMU_HOME)/scripts/native.mk
 endif
-
-# # 检查是否启用 FTRACE
-# ifeq ($(CONFIG_FTRACE),y)
-# IMG_EXT = elf
-# else
-# IMG_EXT = bin
-# endif
-
-# # 默认镜像路径
-# IMG ?= $(BUILD_DIR)/$(ALL)-$(ARCH).$(IMG_EXT)
-
-# run: run-env
-# 	@echo "ALL=$(ALL) ARCH=$(ARCH) BUILD_DIR=$(BUILD_DIR) IMG=$(IMG)"
-# 	@echo "Running with image: $(IMG)"
-# 	$(NEMU_EXEC) $(IMG)
