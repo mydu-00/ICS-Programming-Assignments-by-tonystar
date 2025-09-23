@@ -16,6 +16,11 @@
 #include <isa.h>
 #include <memory/paddr.h>
 #include <utils/ftrace.h>
+#include <getopt.h>
+#include <limits.h>   // added
+#include <stdio.h>    // added
+#include <string.h>   // added
+#include "sdb/sdb.h"  // added
 
 void init_rand();
 void init_log(const char *log_file);
@@ -36,10 +41,6 @@ static void welcome() {
 }
 
 #ifndef CONFIG_TARGET_AM
-#include <getopt.h>
-
-void sdb_set_batch_mode();
-
 static char *log_file = NULL;
 static char *diff_so_file = NULL;
 static char *img_file = NULL;
@@ -97,6 +98,26 @@ static int parse_args(int argc, char *argv[]) {
   return 0;
 }
 
+static const char *resolve_elf_for_ftrace(const char *img) {
+  if (img == NULL) return NULL;
+  static char buf[PATH_MAX];
+  size_t n = strlen(img);
+  if (n + 1 >= sizeof(buf)) return img; // path too long, fallback
+
+  // copy and try to replace .bin -> .elf
+  strncpy(buf, img, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+  if (n >= 4 && strcmp(buf + n - 4, ".bin") == 0) {
+    strcpy(buf + n - 4, ".elf");
+  }
+
+  FILE *fp = fopen(buf, "rb");
+  if (fp) { fclose(fp); return buf; }
+
+  // fallback: if no corresponding .elf, just return original (likely .bin)
+  return img;
+}
+
 void init_monitor(int argc, char *argv[]) {
   /* Perform some global initialization. */
 
@@ -122,7 +143,16 @@ void init_monitor(int argc, char *argv[]) {
   long img_size = load_img();
 
 #ifdef CONFIG_FTRACE
-  if (img_file) ftrace_init(img_file);
+  // Use ELF for symbols if possible
+  if (img_file) {
+    const char *elf_path = resolve_elf_for_ftrace(img_file);
+    if (elf_path && elf_path != img_file) {
+      Log("ftrace: using ELF symbols from %s", elf_path);
+    } else {
+      Log("ftrace: ELF not found; fallback to %s (may fail)", img_file);
+    }
+    ftrace_init(elf_path ? elf_path : img_file);
+  }
 #endif
 
   /* Initialize differential testing. */

@@ -30,4 +30,7 @@ void info_wp(void);
 bool check_wp(void);
 WP* find_wp(int no);
 
+/* batch mode control */
+void sdb_set_batch_mode(void);
+
 #endif
