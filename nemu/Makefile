@@ -76,10 +76,5 @@ endif
 IMG ?= $(BUILD_DIR)/$(ALL)-$(ARCH).$(IMG_EXT)
 
 run: $(NEMU_EXEC)
-	@echo "ALL=$(ALL) ARCH=$(ARCH) BUILD_DIR=$(BUILD_DIR) IMG=$(IMG)"
 	@echo "Running with image: $(IMG)"
 	$(NEMU_EXEC) $(IMG)
-
-ALL ?= add
-ARCH ?= riscv32-nemu
-BUILD_DIR ?= build
