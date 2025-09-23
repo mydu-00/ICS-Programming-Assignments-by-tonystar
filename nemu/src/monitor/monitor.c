@@ -98,6 +98,7 @@ static int parse_args(int argc, char *argv[]) {
   return 0;
 }
 
+#ifdef CONFIG_FTRACE
 static const char *resolve_elf_for_ftrace(const char *img) {
   if (img == NULL) return NULL;
   static char buf[PATH_MAX];
@@ -117,6 +118,7 @@ static const char *resolve_elf_for_ftrace(const char *img) {
   // fallback: if no corresponding .elf, just return original (likely .bin)
   return img;
 }
+#endif
 
 void init_monitor(int argc, char *argv[]) {
   /* Perform some global initialization. */
