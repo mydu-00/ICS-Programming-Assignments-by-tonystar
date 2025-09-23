@@ -33,10 +33,12 @@ void ftrace_init(const char *elf_file) {
   Elf32_Ehdr ehdr;
   Elf32_Shdr shdrs[64];
 
-  // 读取 ELF 头和节头
+  // 读取 ELF 头
   if (fread(&ehdr, 1, sizeof(ehdr), fp) != sizeof(ehdr)) {
     printf("ftrace: failed to read ELF header\n"); fclose(fp); return;
   }
+  // 关键：先跳转到 section header offset
+  fseek(fp, ehdr.e_shoff, SEEK_SET);
   if (fread(shdrs, sizeof(Elf32_Shdr), ehdr.e_shnum, fp) != ehdr.e_shnum) {
     printf("ftrace: failed to read section headers\n"); fclose(fp); return;
   }
