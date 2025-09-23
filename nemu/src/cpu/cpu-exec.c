@@ -18,6 +18,7 @@
 #include <cpu/difftest.h>
 #include <locale.h>
 #include "../monitor/sdb/sdb.h"
+#include <utils/iringbuf.h>   /* added */
 
 /* The assembly code of instructions executed is only output to the screen
  * when the number of instructions executed is less than this value.
@@ -76,6 +77,9 @@ static void exec_once(Decode *s, vaddr_t pc) {
   void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
   disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
+
+  /* push this textual trace into ring buffer (keep recent entries) */
+  iringbuf_push(s->logbuf);
 #endif
 }
 
@@ -102,6 +106,9 @@ static void statistic() {
 
 void assert_fail_msg() {
   isa_reg_display();
+#ifdef CONFIG_ITRACE
+  iringbuf_dump(); /* print recent instruction ring buffer on failure */
+#endif
   statistic();
 }
 
@@ -114,6 +121,10 @@ void cpu_exec(uint64_t n) {
       return;
     default: nemu_state.state = NEMU_RUNNING;
   }
+
+#ifdef CONFIG_ITRACE
+  iringbuf_init(); /* initialize ring buffer at start of cpu_exec */
+#endif
 
   uint64_t timer_start = get_time();
 
