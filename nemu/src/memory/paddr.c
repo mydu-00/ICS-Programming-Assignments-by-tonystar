@@ -21,6 +21,14 @@
 #include <common.h>
 #include <generated/autoconf.h> // for CONFIG_MTRACE_COND
 
+/*
+mtrace:在 menuconfig 里写条件，比如：
+- true：全部输出
+- (addr >= 0x80000000 && addr < 0x80001000)：只输出某段内存
+- (len == 4)：只输出4字节访存
+如果想更灵活，可以用 C 表达式宏展开（如下）。
+*/
+
 #ifdef CONFIG_MTRACE
 #define MTRACE_COND(addr, len, is_read) (CONFIG_MTRACE_COND)
 #endif

@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <memory/paddr.h>
+#include <utils/ftrace.h>
 
 void init_rand();
 void init_log(const char *log_file);
@@ -119,6 +120,10 @@ void init_monitor(int argc, char *argv[]) {
 
   /* Load the image to memory. This will overwrite the built-in image. */
   long img_size = load_img();
+
+#ifdef CONFIG_FTRACE
+  if (img_file) ftrace_init(img_file);
+#endif
 
   /* Initialize differential testing. */
   init_difftest(diff_so_file, img_size, difftest_port);
