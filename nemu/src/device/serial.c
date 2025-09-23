@@ -15,7 +15,6 @@
 
 #include <utils.h>
 #include <device/map.h>
-#include <nemu.h> 
 /* http://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming */
 // NOTE: this is compatible to 16550
 
@@ -47,6 +46,4 @@ void init_serial() {
 #else
   add_mmio_map("serial", CONFIG_SERIAL_MMIO, serial_base, 8, serial_io_handler);
 #endif
-  add_mmio_map("serial_am", (paddr_t)SERIAL_PORT, serial_base /*or NULL*/, 8, serial_io_handler);
-  printf("init_serial called\n");
 }
