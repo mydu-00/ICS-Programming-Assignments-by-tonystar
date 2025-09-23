@@ -59,6 +59,8 @@ ifdef CONFIG_TARGET_AM
 include $(AM_HOME)/Makefile
 LINKAGE += $(ARCHIVES)
 else
+# 禁用 native.mk 里的 run 规则
+RUN_TARGET :=
 # Include rules to build NEMU
 include $(NEMU_HOME)/scripts/native.mk
 endif
@@ -74,5 +76,6 @@ endif
 IMG ?= $(BUILD_DIR)/$(ALL)-$(ARCH).$(IMG_EXT)
 
 run: $(NEMU_EXEC)
+	@echo "ALL=$(ALL) ARCH=$(ARCH) BUILD_DIR=$(BUILD_DIR) IMG=$(IMG)"
 	@echo "Running with image: $(IMG)"
 	$(NEMU_EXEC) $(IMG)
