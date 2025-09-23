@@ -51,6 +51,7 @@ void ftrace_init(const char *elf_file) {
 
   // 读取字符串表
   char *strtab_data = malloc(strtab->sh_size);
+  if (!strtab_data) { printf("ftrace: malloc strtab_data failed\n"); fclose(fp); return; }
   fseek(fp, strtab->sh_offset, SEEK_SET);
   if (fread(strtab_data, 1, strtab->sh_size, fp) != strtab->sh_size) {
     printf("ftrace: failed to read strtab\n"); free(strtab_data); fclose(fp); return;
@@ -59,6 +60,7 @@ void ftrace_init(const char *elf_file) {
   // 读取符号表
   int nsyms = symtab->sh_size / symtab->sh_entsize;
   Elf32_Sym *syms = malloc(symtab->sh_size);
+  if (!syms) { printf("ftrace: malloc syms failed\n"); free(strtab_data); fclose(fp); return; }
   fseek(fp, symtab->sh_offset, SEEK_SET);
   if (fread(syms, symtab->sh_entsize, nsyms, fp) != nsyms) {
     printf("ftrace: failed to read symtab\n"); free(strtab_data); free(syms); fclose(fp); return;
@@ -68,12 +70,18 @@ void ftrace_init(const char *elf_file) {
   func_cnt = 0;
   for (int i = 0; i < nsyms && func_cnt < MAX_FUNC; i++) {
     if (ELF32_ST_TYPE(syms[i].st_info) == STT_FUNC && syms[i].st_size > 0) {
-      func_syms[func_cnt].addr = syms[i].st_value;
-      func_syms[func_cnt].size = syms[i].st_size;
+      // 检查 st_name 是否越界
+      if (syms[i].st_name >= strtab->sh_size) continue;
+      // 拷贝函数名，确保不会越界
       strncpy(func_syms[func_cnt].name, strtab_data + syms[i].st_name, 63);
       func_syms[func_cnt].name[63] = 0;
+      func_syms[func_cnt].addr = syms[i].st_value;
+      func_syms[func_cnt].size = syms[i].st_size;
       func_cnt++;
     }
+  }
+  if (func_cnt >= MAX_FUNC) {
+    printf("ftrace: too many functions, increase MAX_FUNC\n");
   }
   free(strtab_data);
   free(syms);
