@@ -75,6 +75,6 @@ endif
 # 默认镜像路径
 IMG ?= $(BUILD_DIR)/$(ALL)-$(ARCH).$(IMG_EXT)
 
-run: $(NEMU_EXEC)
+run: run-env
 	@echo "Running with image: $(IMG)"
-	$(NEMU_EXEC) $(IMG)
+	$(NEMU_EXEC)
