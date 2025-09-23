@@ -2,6 +2,7 @@
 #include <string.h>
 #include <common.h>
 #include "utils/iringbuf.h"
+#include <utils.h> /* or include <common.h> if log_write declared there */
 
 #ifdef CONFIG_ITRACE
 
@@ -31,7 +32,7 @@ void iringbuf_dump(void) {
   for (int i = 0; i < ring_count; i++) {
     int idx = (start + i) % ITRACE_RINGBUF_SIZE;
     const char *prefix = (i == ring_count - 1) ? "--> " : "    ";
-    printf("%s%s\n", prefix, ringbuf[idx]);
+    log_write("%s%s\n", prefix, ringbuf[idx]); /* use log_write so it goes to nemu-log.txt */
   }
 }
 
