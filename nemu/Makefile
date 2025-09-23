@@ -76,5 +76,6 @@ endif
 IMG ?= $(BUILD_DIR)/$(ALL)-$(ARCH).$(IMG_EXT)
 
 run: run-env
+	@echo "ALL=$(ALL) ARCH=$(ARCH) BUILD_DIR=$(BUILD_DIR) IMG=$(IMG)"
 	@echo "Running with image: $(IMG)"
-	$(NEMU_EXEC)
+	$(NEMU_EXEC) $(IMG)
