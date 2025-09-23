@@ -107,7 +107,6 @@ static void statistic() {
 void assert_fail_msg() {
   isa_reg_display();
 #ifdef CONFIG_ITRACE
-  fprintf(stderr, "ASSERT_FAIL_MSG called, dumping iringbuf...\n");
   iringbuf_dump(); /* print recent instruction ring buffer on failure */
 #endif
   statistic();
