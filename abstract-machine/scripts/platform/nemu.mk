@@ -33,10 +33,13 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
-run: insert-arg
-	$(MAKE) -C $(NEMU_HOME) ISA=$(ISA) run ARGS="$(NEMUFLAGS)" IMG=$(IMAGE).bin
+ifndef RUN_TARGET_DEFINED
+RUN_TARGET_DEFINED := 1
 
-gdb: insert-arg
-	$(MAKE) -C $(NEMU_HOME) ISA=$(ISA) gdb ARGS="$(NEMUFLAGS)" IMG=$(IMAGE).bin
+run:
+    @echo "Running with image: $(IMG)"
+    $(NEMU_EXEC) $(IMG)
+
+endif
 
 .PHONY: insert-arg

@@ -56,6 +56,11 @@ $(BINARY):: $(OBJS) $(ARCHIVES)
 clean:
 	-rm -rf $(BUILD_DIR)
 
-run: run-env
-	@echo "Running with image: $(IMG)"
-	$(NEMU_EXEC) $(IMG)
+ifndef RUN_TARGET_DEFINED
+RUN_TARGET_DEFINED := 1
+
+run:
+    @echo "Running with image: $(IMG)"
+    $(NEMU_EXEC) $(IMG)
+
+endif
