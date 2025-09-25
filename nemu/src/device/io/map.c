@@ -17,7 +17,7 @@
 #include <memory/host.h>
 #include <memory/vaddr.h>
 #include <device/map.h>
-#include <utils.h> // 确保有 Log 宏
+#include <utils.h>
 
 #define IO_SPACE_MAX (32 * 1024 * 1024)
 
