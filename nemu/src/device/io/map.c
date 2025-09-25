@@ -54,7 +54,7 @@ void init_map() {
 }
 
 #ifdef CONFIG_DTRACE
-#define DTRACE(fmt, ...) //Log(fmt, ##__VA_ARGS__)
+#define DTRACE(fmt, ...) log_write(fmt, ##__VA_ARGS__)
 #else
 #define DTRACE(fmt, ...) 
 #endif
