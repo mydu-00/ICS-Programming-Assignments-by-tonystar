@@ -37,19 +37,19 @@ int atoi(const char* nptr) {
 */
 #define KLIB_HEAP_SIZE (64 * 1024)
 static unsigned char klib_heap[KLIB_HEAP_SIZE];
-static size_t klib_heap_pos = 0;
+static size_t addr = 0; // 上次分配内存的位置
 
 void *malloc(size_t size) {
   if (size == 0) return NULL;
   /* align to 8 bytes */
   size_t align = 8;
-  size_t cur = (klib_heap_pos + (align - 1)) & ~(align - 1);
+  size_t cur = (addr + (align - 1)) & ~(align - 1);
   if (cur + size > KLIB_HEAP_SIZE) {
     /* out of memory in this simple allocator */
     return NULL;
   }
   void *ptr = &klib_heap[cur];
-  klib_heap_pos = cur + size;
+  addr = cur + size;
   return ptr;
 }
 
