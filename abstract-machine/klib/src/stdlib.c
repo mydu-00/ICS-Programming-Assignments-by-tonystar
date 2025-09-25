@@ -35,7 +35,7 @@ int atoi(const char* nptr) {
    - This is sufficient for many simple tests in the teaching environment.
    If you need a more complete allocator, replace this with one suited for your OS.
 */
-#define KLIB_HEAP_SIZE (64 * 1024)
+#define KLIB_HEAP_SIZE (8 * 1024 * 1024)  // 8MB
 static unsigned char klib_heap[KLIB_HEAP_SIZE];
 static size_t addr = 0; // 上次分配内存的位置
 
