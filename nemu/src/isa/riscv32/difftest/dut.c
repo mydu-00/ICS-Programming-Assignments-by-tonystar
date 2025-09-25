@@ -18,7 +18,7 @@
 #include "../local-include/reg.h"
 
 bool isa_difftest_checkregs(CPU_state *ref, vaddr_t pc) {
-  for (int i = 0; i < 32; i++) {
+  for (int i = 0; i < MUXDEF(CONFIG_RVE, 16, 32); i++) {
     if (ref->gpr[i] != cpu.gpr[i]) {
       printf("Mismatch at GPR[%d]: ref = 0x%08x, dut = 0x%08x at pc = 0x%08x\n",
         i, ref->gpr[i], cpu.gpr[i], pc);
