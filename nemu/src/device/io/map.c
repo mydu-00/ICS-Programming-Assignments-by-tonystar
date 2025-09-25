@@ -17,6 +17,7 @@
 #include <memory/host.h>
 #include <memory/vaddr.h>
 #include <device/map.h>
+#include <utils.h> // 确保有 Log 宏
 
 #define IO_SPACE_MAX (32 * 1024 * 1024)
 
@@ -52,12 +53,19 @@ void init_map() {
   p_space = io_space;
 }
 
+#ifdef CONFIG_DTRACE
+#define DTRACE(fmt, ...) log_write(fmt, ##__VA_ARGS__)
+#else
+#define DTRACE(fmt, ...) 
+#endif
+
 word_t map_read(paddr_t addr, int len, IOMap *map) {
   assert(len >= 1 && len <= 8);
   check_bound(map, addr);
   paddr_t offset = addr - map->low;
   invoke_callback(map->callback, offset, len, false); // prepare data to read
   word_t ret = host_read(map->space + offset, len);
+  DTRACE("[dtrace] READ  %s @ 0x%08x len=%d => 0x%08x", map->name, addr, len, ret);
   return ret;
 }
 
@@ -67,4 +75,5 @@ void map_write(paddr_t addr, int len, word_t data, IOMap *map) {
   paddr_t offset = addr - map->low;
   host_write(map->space + offset, len, data);
   invoke_callback(map->callback, offset, len, true);
+  DTRACE("[dtrace] WRITE %s @ 0x%08x len=%d <= 0x%08x", map->name, addr, len, data);
 }
