@@ -1,18 +1,28 @@
 #include <am.h>
 #include <nemu.h>
+#include <stdio.h>
 
 #define SYNC_ADDR (VGACTL_ADDR + 4)
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg);
 
 void __am_gpu_init() {
-  int i;
   AM_GPU_CONFIG_T cfg;
   __am_gpu_config(&cfg);
   int w = cfg.width;
   int h = cfg.height;
+  printf("VGACTL: width=%d height=%d vmemsz=%d\n", w, h, cfg.vmemsz); // debug
+
   uint32_t *fb = (uint32_t *)(uintptr_t)FB_ADDR;
-  for (i = 0; i < w * h; i ++) fb[i] = i;
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      /* make a vivid gradient: R = x%256, G = y%256, B = (x+y)%256 */
+      uint32_t color = ((uint32_t)(x & 0xff) << 16) |
+                       ((uint32_t)(y & 0xff) << 8) |
+                       ((uint32_t)((x + y) & 0xff));
+      fb[y * w + x] = color;
+    }
+  }
   outl(SYNC_ADDR, 1);
 }
 
