@@ -60,20 +60,14 @@ static uint32_t key_dequeue() {
   if (key_f != key_r) {
     key = key_queue[key_f];
     key_f = (key_f + 1) % KEY_QUEUE_LEN;
-    printf("key_dequeue -> %#x\n", key);
-  } else {
-    //printf("key_dequeue -> NONE\n");
   }
   return key;
 }
 
 void send_key(uint8_t scancode, bool is_keydown) {
-  printf("send_key: sc=%u keymap=%u down=%d nemu_state=%d\n",
-         scancode, keymap[scancode], is_keydown, nemu_state.state);
   if (nemu_state.state == NEMU_RUNNING && keymap[scancode] != NEMU_KEY_NONE) {
     uint32_t am_scancode = keymap[scancode] | (is_keydown ? KEYDOWN_MASK : 0);
     key_enqueue(am_scancode);
-    printf("  enqueued am_sc=%#x\n", am_scancode);
   }
 }
 #else // !CONFIG_TARGET_AM
@@ -92,7 +86,6 @@ static void i8042_data_io_handler(uint32_t offset, int len, bool is_write) {
   assert(!is_write);
   assert(offset == 0);
   i8042_data_port_base[0] = key_dequeue();
-  printf("i8042 read -> %#x\n", i8042_data_port_base[0]);
 }
 
 void init_i8042() {
