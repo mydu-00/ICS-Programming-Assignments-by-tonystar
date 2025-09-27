@@ -65,9 +65,12 @@ static uint32_t key_dequeue() {
 }
 
 void send_key(uint8_t scancode, bool is_keydown) {
+  printf("send_key: sc=%u keymap=%u down=%d nemu_state=%d\n",
+         scancode, keymap[scancode], is_keydown, nemu_state.state);
   if (nemu_state.state == NEMU_RUNNING && keymap[scancode] != NEMU_KEY_NONE) {
     uint32_t am_scancode = keymap[scancode] | (is_keydown ? KEYDOWN_MASK : 0);
     key_enqueue(am_scancode);
+    printf("  enqueued am_sc=%#x\n", am_scancode);
   }
 }
 #else // !CONFIG_TARGET_AM
