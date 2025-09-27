@@ -35,9 +35,11 @@ void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
     uint32_t *pixels = (uint32_t *)ctl->pixels;
     AM_GPU_CONFIG_T cfg;
     __am_gpu_config(&cfg);
-    int screen_w = cfg.width;
+    int screen_w = cfg.width, screen_h = cfg.height;
     for (j = 0; j < h; j++) {
+      if (y + j >= screen_h) break;
       for (i = 0; i < w; i++) {
+        if (x + i >= screen_w) break;
         int fb_idx = (y + j) * screen_w + (x + i);
         fb[fb_idx] = pixels[j * w + i];
       }
