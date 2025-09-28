@@ -37,32 +37,36 @@ static int sbuf_r = 0, sbuf_w = 0; // 环形缓冲区读写指针
 static int sbuf_count = 0;
 
 static void audio_callback(void *userdata, Uint8 *stream, int len) {
-  int remain = len;
-  while (remain > 0 && sbuf_count > 0) {
-    int chunk = sbuf_w >= sbuf_r ? sbuf_w - sbuf_r : sbuf_size - sbuf_r;
-    if (chunk > remain) chunk = remain;
-    if (chunk > sbuf_count) chunk = sbuf_count;
-    memcpy(stream, sbuf + sbuf_r, chunk);
-    sbuf_r = (sbuf_r + chunk) % sbuf_size;
-    sbuf_count -= chunk;
-    stream += chunk;
-    remain -= chunk;
+  /* 按 AM 约定从 sbuf[0] 开始读取，读取后把剩余数据左移到开头 */
+  int nread = (len < sbuf_count) ? len : sbuf_count;
+  if (nread > 0) {
+    memcpy(stream, sbuf, nread);
+    if (sbuf_count > nread) {
+      memmove(sbuf, sbuf + nread, sbuf_count - nread);
+    }
+    sbuf_count -= nread;
   }
-  if (remain > 0) memset(stream, 0, remain);
+  if (len > nread) {
+    memset(stream + nread, 0, len - nread);
+  }
 }
 
 static void audio_io_handler(uint32_t offset, int len, bool is_write) {
   uint32_t idx = offset / 4;
   if (is_write) {
+    uint32_t val = *(uint32_t *)((uint8_t *)audio_base + offset);
     switch (idx) {
-      case reg_freq:      audio_base[reg_freq] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
-      case reg_channels:  audio_base[reg_channels] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
-      case reg_samples:   audio_base[reg_samples] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
-      case reg_count:     /* guest notifies how many bytes have been written into sbuf */ \
-                        audio_base[reg_count] = *(uint32_t *)((uint8_t*)audio_base + offset); \
-                        sbuf_count = audio_base[reg_count]; \
-                        break;
-      case reg_init: {
+      case reg_freq:
+        audio_base[reg_freq] = val;
+        break;
+      case reg_channels:
+        audio_base[reg_channels] = val;
+        break;
+      case reg_samples:
+        audio_base[reg_samples] = val;
+        break;
+      case reg_init:
+        audio_base[reg_init] = val;
         if (audio_base[reg_init]) {
           want.freq = audio_base[reg_freq];
           want.format = AUDIO_S16SYS;
@@ -70,19 +74,30 @@ static void audio_io_handler(uint32_t offset, int len, bool is_write) {
           want.samples = audio_base[reg_samples];
           want.callback = audio_callback;
           want.userdata = NULL;
-          SDL_CloseAudio();
+          if (dev) SDL_CloseAudioDevice(dev);
           dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-          SDL_PauseAudioDevice(dev, 0);
+          if (dev != 0) SDL_PauseAudioDevice(dev, 0);
         }
         break;
-      }
-      default: break;
+      case reg_count:
+        /* guest 通知已写入的字节数（按 AM 约定为从 sbuf[0] 起的线性长度） */
+        audio_base[reg_count] = val;
+        if ((int)val <= sbuf_size) sbuf_count = (int)val;
+        else sbuf_count = sbuf_size;
+        break;
+      default:
+        break;
     }
   } else {
     switch (idx) {
-      case reg_sbuf_size: audio_base[reg_sbuf_size] = sbuf_size; break;
-      case reg_count:     audio_base[reg_count] = sbuf_count; break;
-      default: break;
+      case reg_sbuf_size:
+        audio_base[reg_sbuf_size] = sbuf_size;
+        break;
+      case reg_count:
+        audio_base[reg_count] = sbuf_count;
+        break;
+      default:
+        break;
     }
   }
 }
