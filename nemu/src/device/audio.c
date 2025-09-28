@@ -58,6 +58,10 @@ static void audio_io_handler(uint32_t offset, int len, bool is_write) {
       case reg_freq:      audio_base[reg_freq] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
       case reg_channels:  audio_base[reg_channels] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
       case reg_samples:   audio_base[reg_samples] = *(uint32_t *)((uint8_t*)audio_base + offset); break;
+      case reg_count:     /* guest notifies how many bytes have been written into sbuf */ \
+                        audio_base[reg_count] = *(uint32_t *)((uint8_t*)audio_base + offset); \
+                        sbuf_count = audio_base[reg_count]; \
+                        break;
       case reg_init: {
         if (audio_base[reg_init]) {
           want.freq = audio_base[reg_freq];
