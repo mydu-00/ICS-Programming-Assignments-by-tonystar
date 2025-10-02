@@ -138,9 +138,8 @@ static int decode_exec(Decode *s) {
   // CSR 指令（这里只举例 csrw/csrr）
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw, I, {
     word_t csr_num = imm;
-    word_t t = csr_read(csr_num);
-    csr_write(csr_num, src1);
-    R(rd) = t;
+    csr_write(csr_num, src1); // 不管rd
+    if (rd != 0) R(rd) = csr_read(csr_num); // 只有rd!=0时才写回
   });
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs, I, {
     word_t csr_num = imm;
@@ -153,12 +152,10 @@ static int decode_exec(Decode *s) {
     R(rd) = csr_read(csr_num);
   });
 
-  // ecall 指令
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
     s->dnpc = isa_raise_intr(8, s->pc); // 8是环境调用异常号
   });
 
-  // mret 指令
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
     s->dnpc = csr_read(CSR_MEPC);
     // 恢复 mstatus 位（可选，PA阶段可略）
