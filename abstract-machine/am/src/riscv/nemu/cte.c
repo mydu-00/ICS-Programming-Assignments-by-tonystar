@@ -1,7 +1,6 @@
 #include <am.h>
 #include <arch/riscv.h>
 #include <klib.h>
-#include <stdio.h>
 
 static Context* (*user_handler)(Event, Context*) = NULL;
 
