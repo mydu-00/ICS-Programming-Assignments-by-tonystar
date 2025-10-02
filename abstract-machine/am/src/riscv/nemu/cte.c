@@ -15,6 +15,12 @@ Context* __am_irq_handle(Context *c) {
     assert(c != NULL);
   }
 
+  printf("mepc=%lx mcause=%lx mstatus=%lx\n", c->mepc, c->mcause, c->mstatus);
+  for (int i = 0; i < NR_REGS; i++) {
+    printf("gpr[%d]=%lx\n", i, c->gpr[i]);
+  }
+  printf("pdir=%p\n", c->pdir);
+
   return c;
 }
 

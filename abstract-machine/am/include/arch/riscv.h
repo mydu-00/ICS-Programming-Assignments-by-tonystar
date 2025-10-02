@@ -8,9 +8,11 @@
 #endif
 
 struct Context {
-  // TODO: fix the order of these members to match trap.S
-  uintptr_t mepc, mcause, gpr[NR_REGS], mstatus;
-  void *pdir;
+  uintptr_t gpr[NR_REGS];   // x1, x3, x4, ..., x31（x0位置用于地址空间信息）
+  void *pdir;               // 地址空间信息（与gpr[0]共用空间）
+  uintptr_t mcause;         // 异常号
+  uintptr_t mstatus;        // 处理器状态
+  uintptr_t mepc;           // 触发异常时的PC
 };
 
 #ifdef __riscv_e
