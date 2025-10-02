@@ -5,7 +5,6 @@
 static Context* (*user_handler)(Event, Context*) = NULL;
 
 Context* __am_irq_handle(Context *c) {
-  printf("IRQ handle entered\n");
   if (user_handler) {
     Event ev = {0};
     switch (c->mcause) {
@@ -26,16 +25,11 @@ Context* __am_irq_handle(Context *c) {
     assert(c != NULL);
   }
 
-  static int irq_count = 0;
-  if (irq_count < 5) {
-    printf("IRQ #%d: mepc=%lx mcause=%lx mstatus=%lx\n", irq_count, c->mepc, c->mcause, c->mstatus);
-    for (int i = 0; i < NR_REGS; i++) {
-      printf("gpr[%d]=%lx\n", i, c->gpr[i]);
-    }
-    printf("pdir=%p\n", c->pdir);
-    putch('\n'); // 输出一个换行，确保内容立即显示
-    irq_count++;
+  printf("mepc=%lx mcause=%lx mstatus=%lx\n", c->mepc, c->mcause, c->mstatus);
+  for (int i = 0; i < NR_REGS; i++) {
+    printf("gpr[%d]=%lx\n", i, c->gpr[i]);
   }
+  printf("pdir=%p\n", c->pdir);
 
   return c;
 }
