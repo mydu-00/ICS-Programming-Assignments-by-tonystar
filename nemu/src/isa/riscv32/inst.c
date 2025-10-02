@@ -18,6 +18,7 @@
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
 #include <utils/ftrace.h> // 顶部加
+#include <csr.h>
 
 #define R(i) gpr(i)
 #define Mr vaddr_read
@@ -134,6 +135,34 @@ static int decode_exec(Decode *s) {
 
   INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10)));
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
+  // CSR 指令（这里只举例 csrw/csrr）
+  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw, I, {
+    word_t csr_num = imm;
+    word_t t = csr_read(csr_num);
+    csr_write(csr_num, src1);
+    R(rd) = t;
+  });
+  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs, I, {
+    word_t csr_num = imm;
+    word_t t = csr_read(csr_num);
+    if (rs1 != 0) csr_write(csr_num, t | src1);
+    R(rd) = t;
+  });
+  INSTPAT("??????? ????? ????? 000 ????? 11100 11", csrr, I, {
+    word_t csr_num = imm;
+    R(rd) = csr_read(csr_num);
+  });
+
+  // ecall 指令
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
+    s->dnpc = isa_raise_intr(8, s->pc); // 8是环境调用异常号
+  });
+
+  // mret 指令
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
+    s->dnpc = csr_read(CSR_MEPC);
+    // 恢复 mstatus 位（可选，PA阶段可略）
+  });
   INSTPAT_END();
 
   R(0) = 0; // reset $zero to 0

@@ -14,33 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
-
-#define CSR_MEPC    0x341
-#define CSR_MCAUSE  0x342
-#define CSR_MSTATUS 0x300
-#define CSR_MTVEC   0x305
-
-static word_t csr_mepc = 0, csr_mcause = 0, csr_mstatus = 0, csr_mtvec = 0;
-
-static inline word_t csr_read(int csr) {
-  switch (csr) {
-    case CSR_MEPC:    return csr_mepc;
-    case CSR_MCAUSE:  return csr_mcause;
-    case CSR_MSTATUS: return csr_mstatus;
-    case CSR_MTVEC:   return csr_mtvec;
-    default: return 0;
-  }
-}
-
-static inline void csr_write(int csr, word_t val) {
-  switch (csr) {
-    case CSR_MEPC:    csr_mepc = val; break;
-    case CSR_MCAUSE:  csr_mcause = val; break;
-    case CSR_MSTATUS: csr_mstatus = val; break;
-    case CSR_MTVEC:   csr_mtvec = val; break;
-    default: break;
-  }
-}
+#include <csr.h>
 
 /* Common RISC-V mstatus bit positions used below (if your tree already
    defines constants like MSTATUS_MIE / MSTATUS_MPIE you can use them). */
@@ -50,6 +24,8 @@ static inline void csr_write(int csr, word_t val) {
 #ifndef MSTATUS_MPIE
 #define MSTATUS_MPIE (1u << 7)
 #endif
+
+word_t csr_mepc = 0, csr_mcause = 0, csr_mstatus = 0, csr_mtvec = 0;
 
 word_t isa_raise_intr(word_t NO, vaddr_t epc) {
   /* Trigger an interrupt/exception:
