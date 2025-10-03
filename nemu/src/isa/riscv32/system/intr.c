@@ -16,7 +16,7 @@
 #include <isa.h>
 #include <csr.h>
 #include <stdio.h>
-#include <utils.h>   // 若已有 log_write 的声明 (根据你工程实际调整)
+#include <utils.h>
 #include <generated/autoconf.h>
 
 /* Common RISC-V mstatus bit positions used below (if your tree already
@@ -35,18 +35,10 @@ static inline void etrace_log(word_t cause, vaddr_t epc,
                               word_t mtvec) {
 #if defined(CONFIG_ETRACE)
   const char *type = (cause & (1u << (sizeof(word_t)*8 - 1))) ? "INT" : "EXC";
-  // 低 31 位是具体号
   uint32_t code = (uint32_t)(cause & ~(1u << 31));
-#if defined(CONFIG_ETRACE_OUT_LOG)
-  log_write("[ETRACE] %s code=%u mcause=0x%08x epc=0x%08x -> mtvec=0x%08x mstatus:0x%08x->0x%08x\n",
-            type, code, (uint32_t)cause, (uint32_t)epc, (uint32_t)mtvec,
-            (uint32_t)old_mstatus, (uint32_t)new_mstatus);
-#elif defined(CONFIG_ETRACE_OUT_STDERR)
-  fprintf(stderr,
-          "[ETRACE] %s code=%u mcause=0x%08x epc=0x%08x -> mtvec=0x%08x mstatus:0x%08x->0x%08x\n",
-          type, code, (uint32_t)cause, (uint32_t)epc, (uint32_t)mtvec,
-          (uint32_t)old_mstatus, (uint32_t)new_mstatus);
-#endif
+  printf("[ETRACE] %s code=%u mcause=0x%08x epc=0x%08x -> mtvec=0x%08x mstatus:0x%08x->0x%08x\n",
+       type, code, (uint32_t)cause, (uint32_t)epc, (uint32_t)mtvec,
+       (uint32_t)old_mstatus, (uint32_t)new_mstatus);
 #else
   (void)cause; (void)epc; (void)old_mstatus; (void)new_mstatus; (void)mtvec;
 #endif

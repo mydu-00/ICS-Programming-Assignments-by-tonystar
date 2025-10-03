@@ -183,20 +183,10 @@ config DTRACE_COND
   default "true"
 
 config ETRACE
-  bool "Enable exception tracer (etrace)"
+  bool "Enable exception tracer"
   default y
   help
     Record every exception/interrupt entry (epc, mcause, mstatus, mtvec).
-
-choice
-  prompt "Etrace output target"
-  depends on ETRACE
-  default ETRACE_OUT_STDERR
-config ETRACE_OUT_LOG
-  bool "etrace -> nemu log file"
-config ETRACE_OUT_STDERR
-  bool "etrace -> stderr"
-endchoice
 
 choice
   prompt "Reference design"
