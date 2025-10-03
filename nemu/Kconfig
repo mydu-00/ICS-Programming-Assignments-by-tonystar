@@ -182,6 +182,22 @@ config DTRACE_COND
   string "Only trace device access when the condition is true"
   default "true"
 
+config ETRACE
+  bool "Enable exception tracer (etrace)"
+  default y
+  help
+    Record every exception/interrupt entry (epc, mcause, mstatus, mtvec).
+
+choice
+  prompt "Etrace output target"
+  depends on ETRACE
+  default ETRACE_OUT_LOG
+config ETRACE_OUT_LOG
+  bool "etrace -> nemu log file"
+config ETRACE_OUT_STDERR
+  bool "etrace -> stderr"
+endchoice
+
 choice
   prompt "Reference design"
   default DIFFTEST_REF_SPIKE if ISA_riscv
