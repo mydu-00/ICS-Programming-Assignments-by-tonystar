@@ -121,9 +121,8 @@ static int decode_exec(Decode *s) {
 
   /* System / CSR / privileged instructions: place early to avoid accidental matches */
   INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
-    /* debug: confirm ecall gets executed */
-    printf(">>> ecall executed at pc = 0x%x\n", s->pc);
-    s->dnpc = isa_raise_intr(8, s->pc); // environment call from U-mode (8)
+    // Machine mode ecall -> cause = 11
+    s->dnpc = isa_raise_intr(11, s->pc);
   });
 
   INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {

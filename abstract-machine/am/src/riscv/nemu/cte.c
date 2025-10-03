@@ -8,23 +8,22 @@ Context* __am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
     switch (c->mcause) {
-      case 11: // 环境调用（ecall）
+      case 8:  // ecall from U (兼容你的旧实现)
+      case 11: // ecall from M
 #ifdef __riscv_e
-        if (c->gpr[15] == (uintptr_t)-1) ev.event = EVENT_YIELD; // a5
+        if (c->gpr[15] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #else
-        if (c->gpr[17] == (uintptr_t)-1) ev.event = EVENT_YIELD; // a7
+        if (c->gpr[17] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #endif
         else ev.event = EVENT_SYSCALL;
         break;
-      case 0x80000007: ev.event = EVENT_IRQ_TIMER; break; // timer interrupt
-      case 0x8000000b: ev.event = EVENT_IRQ_IODEV; break; // external device interrupt
+      case 0x80000007: ev.event = EVENT_IRQ_TIMER; break;
+      case 0x8000000b: ev.event = EVENT_IRQ_IODEV; break;
       default: ev.event = EVENT_ERROR; break;
     }
-
     c = user_handler(ev, c);
     assert(c != NULL);
   }
-
   return c;
 }
 
