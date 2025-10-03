@@ -25,19 +25,12 @@ Context* __am_irq_handle(Context *c) {
     assert(c != NULL);
   }
 
-  printf("mepc=%lx mcause=%lx mstatus=%lx\n", c->mepc, c->mcause, c->mstatus);
-  for (int i = 0; i < NR_REGS; i++) {
-    printf("gpr[%d]=%lx\n", i, c->gpr[i]);
-  }
-  printf("pdir=%p\n", c->pdir);
-
   return c;
 }
 
 extern void __am_asm_trap(void);
 
 bool cte_init(Context*(*handler)(Event, Context*)) {
-  printf("mtvec set to %p\n", __am_asm_trap);
   // initialize exception entry
   asm volatile("csrw mtvec, %0" : : "r"(__am_asm_trap));
 
