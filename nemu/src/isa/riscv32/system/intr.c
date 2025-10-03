@@ -17,6 +17,7 @@
 #include <csr.h>
 #include <stdio.h>
 #include <utils.h>   // 若已有 log_write 的声明 (根据你工程实际调整)
+#include <generated/autoconf.h>
 
 /* Common RISC-V mstatus bit positions used below (if your tree already
    defines constants like MSTATUS_MIE / MSTATUS_MPIE you can use them). */
