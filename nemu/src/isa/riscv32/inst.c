@@ -119,10 +119,23 @@ static int decode_exec(Decode *s) {
 #endif
   });
 
+  /* System / CSR / privileged instructions: place early to avoid accidental matches */
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
+    /* debug: confirm ecall gets executed */
+    printf(">>> ecall executed at pc = 0x%x\n", s->pc);
+    s->dnpc = isa_raise_intr(8, s->pc); // environment call from U-mode (8)
+  });
+
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
+    /* return from trap: set next pc to mepc */
+    s->dnpc = csr_read(CSR_MEPC);
+    /* Note: mstatus restore can be handled if needed */
+  });
+
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw, I, {
     word_t csr_num = imm;
-    csr_write(csr_num, src1); // 不管rd
-    if (rd != 0) R(rd) = csr_read(csr_num); // 只有rd!=0时才写回
+    csr_write(csr_num, src1);
+    if (rd != 0) R(rd) = csr_read(csr_num);
   });
   INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs, I, {
     word_t csr_num = imm;
@@ -135,14 +148,9 @@ static int decode_exec(Decode *s) {
     R(rd) = csr_read(csr_num);
   });
 
-    INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
-    s->dnpc = isa_raise_intr(8, s->pc); // 8是环境调用异常号
-  });
-
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
-    s->dnpc = csr_read(CSR_MEPC);
-    // 恢复 mstatus 位（可选，PA阶段可略）
-  });
+  /* Keep ebreak/inv after system group */
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10)));
+  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   
   INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, {
     word_t t = s->snpc; s->dnpc = s->pc + imm; R(rd) = t;
@@ -157,9 +165,6 @@ static int decode_exec(Decode *s) {
   INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge    , B, if ((sword_t)src1 >= (sword_t)src2) s->dnpc = s->pc + imm;);
   INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B, if (src1 < src2) s->dnpc = s->pc + imm;);
   INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , B, if (src1 >= src2) s->dnpc = s->pc + imm;);
-
-  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, NEMUTRAP(s->pc, R(10)));
-  INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, INV(s->pc));
   
   INSTPAT_END();
 
