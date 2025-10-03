@@ -191,7 +191,7 @@ config ETRACE
 choice
   prompt "Etrace output target"
   depends on ETRACE
-  default ETRACE_OUT_LOG
+  default ETRACE_OUT_STDERR
 config ETRACE_OUT_LOG
   bool "etrace -> nemu log file"
 config ETRACE_OUT_STDERR
