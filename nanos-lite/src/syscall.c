@@ -20,12 +20,12 @@ void do_syscall(Context *c) {
 
   switch (id) {
     case SYS_yield:
-      yield();          // 真正触发一次调度/切换 (若实现为触发事件)
+      yield();          
       c->GPRx = 0;
       break;
 
     case SYS_exit:
-      halt((int)arg0); // 应该直接让 NEMU 显示 HIT GOOD TRAP
+      halt((int)arg0); 
       break;
 
     default:
