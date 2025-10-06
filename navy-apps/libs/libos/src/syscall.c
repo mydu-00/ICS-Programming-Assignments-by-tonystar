@@ -60,10 +60,10 @@ void _exit(int status) {
   while (1);
 }
 
-// int _open(const char *path, int flags, mode_t mode) {
-//   _exit(SYS_open);
-//   return 0;
-// }
+int _open(const char *path, int flags, mode_t mode) {
+  _exit(SYS_open);
+  return 0;
+}
 
 int _write(int fd, void *buf, size_t count) {
   return (int)_syscall_( SYS_write, fd, (intptr_t)buf, count );
