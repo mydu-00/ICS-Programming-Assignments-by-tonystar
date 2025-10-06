@@ -117,6 +117,13 @@ int _execve(const char *fname, char * const argv[], char *const envp[]) {
 // But to pass linking, they are defined as dummy functions.
 
 int _fstat(int fd, struct stat *buf) {
+  if (buf == NULL) return -1;
+  // stdout / stderr 视为字符设备
+  if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+    buf->st_mode = S_IFCHR;
+    return 0;
+  }
+  // 其他描述符尚未实现
   return -1;
 }
 
