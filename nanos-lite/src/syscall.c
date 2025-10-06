@@ -1,14 +1,6 @@
 #include <common.h>
 #include "syscall.h"
 
-#ifndef SYS_yield
-#define SYS_yield 1
-#endif
-
-#ifndef SYS_exit
-#define SYS_exit 60
-#endif
-
 /* perform syscall handling; set return value via c->GPRx */
 void do_syscall(Context *c) {
   uintptr_t id   = c->GPR1;

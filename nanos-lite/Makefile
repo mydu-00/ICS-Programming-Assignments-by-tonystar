@@ -9,6 +9,7 @@ ifeq ($(ARCH),native)
 ISA = am_native
 else
 INC_PATH += include $(NAVY_HOME)/libs/libc/include
+INC_PATH += include $(NAVY_HOME)/libs/libos/include
 endif
 
 ./src/resources.S: $(RAMDISK_FILE)
