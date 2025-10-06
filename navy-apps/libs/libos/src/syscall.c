@@ -204,3 +204,7 @@ int symlink(const char *target, const char *linkpath) {
 int ioctl(int fd, unsigned long request, ...) {
   return -1;
 }
+
+int _isatty(int fd) {
+  return (fd == STDOUT_FILENO || fd == STDERR_FILENO) ? 1 : 0;
+}
