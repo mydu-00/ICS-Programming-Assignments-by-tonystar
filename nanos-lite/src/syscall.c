@@ -45,12 +45,10 @@ void do_syscall(Context *c) {
       const char *buf = (const char *)arg1;
       size_t len = (size_t)arg2;
       if ((fd == 1 || fd == 2) && buf) {
-        for (size_t i = 0; i < len; i++) {
-          putch(buf[i]);
-        }
-        c->GPRx = len;   // 成功返回写入的字节数
+        for (size_t i = 0; i < len; i++) putch(buf[i]);
+        c->GPRx = len;
       } else {
-        c->GPRx = -1;    // 简单错误处理
+        c->GPRx = -1;
       }
       break;
     }
