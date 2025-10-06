@@ -20,8 +20,7 @@ void do_syscall(Context *c) {
 
   switch (id) {
     case SYS_yield:
-      // 关键修复：不要再次调用 yield() 以避免嵌套 ecall 和双重 mepc +=4
-      // 如果有调度器，可在这里调用 schedule();
+      yield();
       c->GPRx = 0;
       break;
     case SYS_exit:
