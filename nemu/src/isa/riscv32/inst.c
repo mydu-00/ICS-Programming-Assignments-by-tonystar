@@ -119,18 +119,22 @@ static int decode_exec(Decode *s) {
 #endif
   });
 
-  /* System / CSR / privileged instructions: place early to avoid accidental matches */
-  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall, N, {
-    // Machine mode ecall -> cause = 11
+  /* System / CSR / privileged instructions:
+   * 顺序很重要:
+   * 1. 先匹配 ecall / ebreak / mret
+   * 2. 再匹配通配的 CSR 指令 (否则 ebreak 会被误判为 csrr)
+   */
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall , N, {
     s->dnpc = isa_raise_intr(11, s->pc);
   });
-
-  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret, N, {
-    /* return from trap: set next pc to mepc */
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak, N, {
+    NEMUTRAP(s->pc, R(10));
+  });
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret  , N, {
     s->dnpc = csr_read(CSR_MEPC);
-    /* Note: mstatus restore can be handled if needed */
   });
 
+  // CSR 指令 (放在 ecall/ebreak/mret 之后以避免覆盖)
   INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw, I, {
     word_t csr_num = imm;
     csr_write(csr_num, src1);
@@ -142,7 +146,7 @@ static int decode_exec(Decode *s) {
     if (rs1 != 0) csr_write(csr_num, t | src1);
     R(rd) = t;
   });
-  INSTPAT("??????? ????? ????? 000 ????? 11100 11", csrr, I, {
+  INSTPAT("??????? ????? ????? 000 ????? 11100 11", csrr , I, {
     word_t csr_num = imm;
     R(rd) = csr_read(csr_num);
   });
