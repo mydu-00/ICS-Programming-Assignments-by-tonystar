@@ -3,7 +3,10 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <time.h>
+#include <stdint.h>          // 新增
 #include "syscall.h"
+
+static uintptr_t program_break = 0;  // 新增
 
 // helper macros
 #define _concat(x, y) x ## y
@@ -70,6 +73,18 @@ int _write(int fd, void *buf, size_t count) {
 }
 
 void *_sbrk(intptr_t increment) {
+  if (program_break == 0) {
+    extern char _end;
+    program_break = (uintptr_t)&_end;
+  }
+
+  uintptr_t old_brk = program_break;
+  uintptr_t new_brk = old_brk + increment;
+
+  if (_syscall_(SYS_brk, new_brk, 0, 0) == 0) {
+    program_break = new_brk;
+    return (void *)old_brk;
+  }
   return (void *)-1;
 }
 

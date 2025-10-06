@@ -1,6 +1,10 @@
 #include <common.h>
 #include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
 #include "syscall.h"
+#include <stdint.h>
+#include <stdio.h>
+
+extern int mm_brk(uintptr_t brk);  // 新增声明
 
 //开关strace功能在这里，要关闭就注释掉
 // #define CONFIG_STRACE 1
@@ -12,6 +16,7 @@
       case SYS_exit:  return "exit";
       case SYS_yield: return "yield";
       case SYS_write: return "write";
+      case SYS_brk:  return "brk";
       default:        return "unknown";
     }
   }
@@ -50,6 +55,12 @@ void do_syscall(Context *c) {
       } else {
         c->GPRx = -1;
       }
+      break;
+    }
+
+    case SYS_brk: {
+      int ret = mm_brk(arg0);
+      c->GPRx = ret;
       break;
     }
 
