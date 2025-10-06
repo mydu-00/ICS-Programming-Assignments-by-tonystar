@@ -11,12 +11,12 @@ Context* __am_irq_handle(Context *c) {
       case 8:
       case 11:
 #ifdef __riscv_e
-        printf("[trap] mcause=%lx a5(x15)=0x%lx a7(x17)=<unused>\n",
-               (unsigned long)c->mcause, (unsigned long)c->gpr[15]);
+        printf("[trap] mcause=0x%x a5=0x%x\n",
+               (unsigned)c->mcause, (unsigned)c->gpr[15]);
         if (c->gpr[15] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #else
-        printf("[trap] mcause=%lx a7(x17)=0x%lx\n",
-               (unsigned long)c->mcause, (unsigned long)c->gpr[17]);
+        printf("[trap] mcause=0x%x a7=0x%x\n",
+               (unsigned)c->mcause, (unsigned)c->gpr[17]);
         if (c->gpr[17] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #endif
         else ev.event = EVENT_SYSCALL;
