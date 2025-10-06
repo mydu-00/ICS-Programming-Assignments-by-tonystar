@@ -23,7 +23,7 @@ void do_syscall(Context *c) {
   a[1] = c->GPR2;
   a[2] = c->GPR3;
   a[3] = c->GPR4;
-  printf(" extracted: num=%lu a0=%lu a1=%lu a2=%lu\n", (unsigned long)a[0], (unsigned long)a[1], (unsigned long)a[2], (unsigned long)a[3]);
+  printf(" extracted: num='%lu' a0=%lu a1=%lu a2=%lu\n", (unsigned long)a[0], (unsigned long)a[1], (unsigned long)a[2], (unsigned long)a[3]);
 
   switch (a[0]) {
     case SYS_yield:
