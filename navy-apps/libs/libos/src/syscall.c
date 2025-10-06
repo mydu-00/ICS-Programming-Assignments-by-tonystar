@@ -90,14 +90,6 @@ void *_sbrk(intptr_t increment) {
   return (void *)-1;
 }
 
-void *_sbrk_r(struct _reent *r, ptrdiff_t incr) {
-  void *ret = _sbrk((intptr_t)incr);
-  if (ret == (void *)-1 && r) {
-    r->_errno = ENOMEM;
-  }
-  return ret;
-}
-
 int _read(int fd, void *buf, size_t count) {
   _exit(SYS_read);
   return 0;
@@ -213,8 +205,4 @@ int symlink(const char *target, const char *linkpath) {
 
 int ioctl(int fd, unsigned long request, ...) {
   return -1;
-}
-
-int _isatty(int fd) {
-  return (fd == 1 || fd == 2);  // stdout/stderr 是终端
 }
