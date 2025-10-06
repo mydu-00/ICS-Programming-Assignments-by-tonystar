@@ -1,4 +1,6 @@
 #include <common.h>
+#include <am.h>          // 确保拿到 _halt()/yield()
+
 #include "syscall.h"
 
 /* perform syscall handling; set return value via c->GPRx */
@@ -12,21 +14,21 @@ void do_syscall(Context *c) {
          (unsigned)id, (unsigned)c->GPR1,
          (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);
 
-  if (id == 0) {
-    printf("[diag] gpr[15](a5)=%x gpr[17](a7)=%x\n",
-           (unsigned)c->gpr[15],
-           (unsigned)((NR_REGS > 17) ? c->gpr[17] : 0));
+  if (id == SYS_exit) {
+    printf("[diag] exit status=%u\n", (unsigned)arg0);
   }
 
   switch (id) {
     case SYS_yield:
-      // yield();
+      yield();          // 真正触发一次调度/切换 (若实现为触发事件)
       c->GPRx = 0;
       break;
+
     case SYS_exit:
-      halt((int)arg0);
-      c->GPRx = 0;
+      halt((int)arg0); // 应该直接让 NEMU 显示 HIT GOOD TRAP
+      __builtin_unreachable();
       break;
+
     default:
       panic("Unhandled syscall ID = %u", (unsigned)id);
   }
