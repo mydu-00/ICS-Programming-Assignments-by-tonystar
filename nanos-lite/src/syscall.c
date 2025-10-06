@@ -1,6 +1,13 @@
 #include <common.h>
 #include "syscall.h"
-#include "sysnr.h"   // 调整相对路径按你仓库结构
+
+#ifndef SYS_yield
+#define SYS_yield 1
+#endif
+
+#ifndef SYS_exit
+#define SYS_exit 60
+#endif
 
 /* perform syscall handling; set return value via c->GPRx */
 void do_syscall(Context *c) {
