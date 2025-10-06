@@ -2,9 +2,9 @@
 
 static Context* do_event(Event e, Context* c) {
   switch (e.event) {
+    case EVENT_YIELD: printf("nanos_lite irq handler, love ya\n"); break;
     default: panic("Unhandled event ID = %d", e.event);
   }
-
   return c;
 }
 
