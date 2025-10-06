@@ -7,7 +7,7 @@
 extern int mm_brk(uintptr_t brk);  // 新增声明
 
 //开关strace功能在这里，要关闭就注释掉
-// #define CONFIG_STRACE 1
+#define CONFIG_STRACE 1
 
 #ifdef CONFIG_STRACE
   #define STRACE_PRINT(...) printf(__VA_ARGS__)
