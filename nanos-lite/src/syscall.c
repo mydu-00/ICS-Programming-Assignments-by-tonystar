@@ -3,6 +3,7 @@
 #include "syscall.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
 
@@ -10,13 +11,35 @@ extern int mm_brk(uintptr_t brk);  // 新增声明
 #define CONFIG_STRACE 1
 
 #ifdef CONFIG_STRACE
-  #define STRACE_PRINT(...) printf(__VA_ARGS__)
+  #include <stdbool.h>
+  #define STRACE_BUFSZ 256
+
+  static bool strace_guard = false;
+
+  static void strace_print_impl(const char *fmt, ...) {
+    if (strace_guard) return;
+    strace_guard = true;
+
+    char buf[STRACE_BUFSZ];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    for (char *p = buf; *p; p++) putch(*p);
+
+    strace_guard = false;
+  }
+
+  #undef STRACE_PRINT
+  #define STRACE_PRINT(...) strace_print_impl(__VA_ARGS__)
+
   static const char *sys_name(uintptr_t id) {
     switch (id) {
       case SYS_exit:  return "exit";
       case SYS_yield: return "yield";
       case SYS_write: return "write";
-      case SYS_brk:  return "brk";
+      case SYS_brk:   return "brk";
       default:        return "unknown";
     }
   }
