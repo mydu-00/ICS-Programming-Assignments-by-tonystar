@@ -5,5 +5,5 @@ Area heap;
 void putch(char ch) {
 }
 
-void halt(int code) {
-}
+// void halt(int code) {
+// }
