@@ -2,16 +2,10 @@
 #include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
 #include "syscall.h"
 
-# define CONFIG_STRACE 1
+#define CONFIG_STRACE 1
 
 #ifdef CONFIG_STRACE
-  #ifdef CONFIG_STRACE_TO_LOG
-    extern void log_write(const char *fmt, ...);
-    #define STRACE_PRINT(...) log_write(__VA_ARGS__)
-  #else
-    #define STRACE_PRINT(...) printf(__VA_ARGS__)
-  #endif
-
+  #define STRACE_PRINT(...) printf(__VA_ARGS__)
   static const char *sys_name(uintptr_t id) {
     switch (id) {
       case SYS_exit:  return "exit";
@@ -60,7 +54,7 @@ void do_syscall(Context *c) {
 
 #ifdef CONFIG_STRACE
   if (id != SYS_exit) {
-    STRACE_PRINT(" = %ld\n", (long)c->GPRx);
+    STRACE_PRINT(" = %d\n", (int)c->GPRx);
   }
 #endif
 }
