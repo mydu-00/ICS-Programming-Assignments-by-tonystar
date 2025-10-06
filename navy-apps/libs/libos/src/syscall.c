@@ -216,5 +216,5 @@ int ioctl(int fd, unsigned long request, ...) {
 }
 
 int _isatty(int fd) {
-  return (fd == STDOUT_FILENO || fd == STDERR_FILENO) ? 1 : 0;
+  return (fd == 1 || fd == 2);  // stdout/stderr 是终端
 }
