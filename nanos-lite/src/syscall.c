@@ -26,7 +26,6 @@ void do_syscall(Context *c) {
 
     case SYS_exit:
       halt((int)arg0); // 应该直接让 NEMU 显示 HIT GOOD TRAP
-      __builtin_unreachable();
       break;
 
     default:
