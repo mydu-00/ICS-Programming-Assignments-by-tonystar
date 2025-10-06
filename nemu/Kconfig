@@ -186,8 +186,9 @@ config ETRACE
   default y
   help
     Record every exception/interrupt entry (epc, mcause, mstatus, mtvec).
+
 config STRACE
-  bool "Enable nanos-lite syscall tracer (strace)"
+  bool "Enable syscall tracer"
   default n
   help
     Print each nanos-lite syscall (name, arguments, return value).
@@ -199,7 +200,7 @@ config STRACE_TO_LOG
   default n
   help
     Use log_write() (nemu_log.txt) instead of printf().
-    
+
 choice
   prompt "Reference design"
   default DIFFTEST_REF_SPIKE if ISA_riscv
