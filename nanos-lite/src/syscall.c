@@ -2,6 +2,7 @@
 #include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
 #include "syscall.h"
 
+//开关strace功能在这里，要关闭就注释掉
 #define CONFIG_STRACE 1
 
 #ifdef CONFIG_STRACE
@@ -10,6 +11,7 @@
     switch (id) {
       case SYS_exit:  return "exit";
       case SYS_yield: return "yield";
+      case SYS_write: return "write";
       default:        return "unknown";
     }
   }
@@ -38,6 +40,21 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       break;
 
+    case SYS_write: {
+      int fd = (int)arg0;
+      const char *buf = (const char *)arg1;
+      size_t len = (size_t)arg2;
+      if ((fd == 1 || fd == 2) && buf) {
+        for (size_t i = 0; i < len; i++) {
+          putch(buf[i]);
+        }
+        c->GPRx = len;   // 成功返回写入的字节数
+      } else {
+        c->GPRx = -1;    // 简单错误处理
+      }
+      break;
+    }
+
     case SYS_exit:
 #ifdef CONFIG_STRACE
       STRACE_PRINT(" = ? <halt>\n");
@@ -54,7 +71,11 @@ void do_syscall(Context *c) {
 
 #ifdef CONFIG_STRACE
   if (id != SYS_exit) {
-    STRACE_PRINT(" = %d\n", (int)c->GPRx);
+    if (id == SYS_write) {
+      STRACE_PRINT(" = %d\n", (int)c->GPRx);
+    } else {
+      STRACE_PRINT(" = %d\n", (int)c->GPRx);
+    }
   }
 #endif
 }
