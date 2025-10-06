@@ -1,35 +1,34 @@
 #include <common.h>
 #include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
-
 #include "syscall.h"
 
+# define CONFIG_STRACE 1
+
 #ifdef CONFIG_STRACE
-#ifdef CONFIG_STRACE_TO_LOG
-extern void log_write(const char *fmt, ...);
-#define STRACE_PRINT(...) log_write(__VA_ARGS__)
-#else
-#define STRACE_PRINT(...) printf(__VA_ARGS__)
-#endif
+  #ifdef CONFIG_STRACE_TO_LOG
+    extern void log_write(const char *fmt, ...);
+    #define STRACE_PRINT(...) log_write(__VA_ARGS__)
+  #else
+    #define STRACE_PRINT(...) printf(__VA_ARGS__)
+  #endif
 
-static const char *sys_name(uintptr_t id) {
-  switch (id) {
-    case SYS_exit:  return "exit";
-    case SYS_yield: return "yield";
-    default:        return "unknown";
+  static const char *sys_name(uintptr_t id) {
+    switch (id) {
+      case SYS_exit:  return "exit";
+      case SYS_yield: return "yield";
+      default:        return "unknown";
+    }
   }
-}
 #endif
 
-/* perform syscall handling; set return value via c->GPRx */
 void do_syscall(Context *c) {
   uintptr_t id   = c->GPR1;
   uintptr_t arg0 = c->GPR2;
-  // uintptr_t arg1 = c->GPR3;
-  // uintptr_t arg2 = c->GPR4;
+  uintptr_t arg1 = c->GPR3;
+  uintptr_t arg2 = c->GPR4;
 
 #ifdef CONFIG_STRACE
   const char *name = sys_name(id);
-  // 打印调用头部
   if (id == SYS_exit) {
     STRACE_PRINT("[strace] %s(%d)", name, (int)arg0);
   } else if (id == SYS_yield) {
