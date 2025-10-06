@@ -1,4 +1,3 @@
 include $(NAVY_HOME)/scripts/riscv/common.mk
-# Use COMMON_CFLAGS from top-level to keep ISA/ABI consistent across projects
-CFLAGS  += $(COMMON_CFLAGS)
+CFLAGS  += -march=rv32em -mabi=ilp32e  #overwrite
 LDFLAGS += -melf32lriscv

@@ -13,12 +13,6 @@ define git_commit
 	-@sync
 endef
 
-RISCV_MARCH ?= rv32g
-RISCV_MABI  ?= ilp32
-
-COMMON_CFLAGS += -march=$(RISCV_MARCH) -mabi=$(RISCV_MABI)
-export COMMON_CFLAGS
-
 _default:
 	@echo "Please run 'make' under subprojects."
 
