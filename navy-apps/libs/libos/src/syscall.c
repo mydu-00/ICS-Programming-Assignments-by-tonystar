@@ -5,6 +5,8 @@
 #include <time.h>
 #include <stdint.h>          // 新增
 #include "syscall.h"
+#include <reent.h>
+#include <errno.h>
 
 static uintptr_t program_break = 0;  // 新增
 
@@ -86,6 +88,14 @@ void *_sbrk(intptr_t increment) {
     return (void *)old_brk;
   }
   return (void *)-1;
+}
+
+void *_sbrk_r(struct _reent *r, ptrdiff_t incr) {
+  void *ret = _sbrk((intptr_t)incr);
+  if (ret == (void *)-1 && r) {
+    r->_errno = ENOMEM;
+  }
+  return ret;
 }
 
 int _read(int fd, void *buf, size_t count) {
