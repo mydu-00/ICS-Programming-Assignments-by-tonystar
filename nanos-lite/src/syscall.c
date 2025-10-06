@@ -5,6 +5,10 @@
 #define SYS_yield 1
 #endif
 
+#ifndef SYS_exit
+#define SYS_exit 60
+#endif
+
 /* perform syscall handling; set return value via c->GPRx */
 void do_syscall(Context *c) {
   uintptr_t a[4];
@@ -17,6 +21,13 @@ void do_syscall(Context *c) {
     case SYS_yield:
       /* For SYS_yield, simply invoke yield (CTE) and return 0 */
       yield();
+      c->GPRx = 0;
+      break;
+
+    case SYS_exit:
+      /* SYS_exit(status): directly halt the machine with given status */
+      halt((int)a[1]);
+      /* not reached; keep for clarity */
       c->GPRx = 0;
       break;
 
