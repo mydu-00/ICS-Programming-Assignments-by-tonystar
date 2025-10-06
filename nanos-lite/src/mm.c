@@ -3,7 +3,8 @@
 // #include <nemu.h>
 #define PGSIZE    4096
 static void *pf = NULL;
-static uintptr_t brk_curr = 0;  // 记录当前 program break
+extern char _end;        // 链接脚本里提供
+static uintptr_t brk_curr = 0;
 
 void* new_page(size_t nr_page) {
   void *ret = pf;
@@ -22,15 +23,12 @@ void free_page(void *p) {
 }
 
 int mm_brk(uintptr_t brk) {
-  if (brk == 0) return 0;
-  if (brk_curr == 0) brk_curr = (uintptr_t)pf;
-  if (brk > brk_curr) {
-    // 需要分配 (brk - brk_curr) 向上取整的页
-    uintptr_t need = brk - brk_curr;
-    size_t pages = (need + PGSIZE - 1) / PGSIZE;
-    new_page(pages);
-    brk_curr = brk;
+  if (brk_curr == 0) {
+    brk_curr = (uintptr_t)&_end;
   }
+  if (brk == 0) return 0;          // 纯查询
+  // 简化：总是接受（PA3）
+  brk_curr = brk;
   return 0;
 }
 

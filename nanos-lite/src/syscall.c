@@ -57,6 +57,9 @@ void do_syscall(Context *c) {
     STRACE_PRINT("[strace] %s(%d)", name, (int)arg0);
   } else if (id == SYS_yield) {
     STRACE_PRINT("[strace] %s()", name);
+  } else if (id == SYS_write) {
+    STRACE_PRINT("[strace] %s(%d,%p,%u)",
+      name, (int)arg0, (void*)arg1, (unsigned)arg2);
   } else {
     STRACE_PRINT("[strace] %s(%u,%u,%u)", name,
                  (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);

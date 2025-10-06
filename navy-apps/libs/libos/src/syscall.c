@@ -73,8 +73,8 @@ int _write(int fd, void *buf, size_t count) {
 }
 
 void *_sbrk(intptr_t increment) {
+  extern char _end;
   if (program_break == 0) {
-    extern char _end;
     program_break = (uintptr_t)&_end;
   }
 
