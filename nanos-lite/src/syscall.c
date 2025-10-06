@@ -1,5 +1,5 @@
 #include <common.h>
-#include <am.h>          // 确保拿到 _halt()/yield()
+#include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
 
 #include "syscall.h"
 
