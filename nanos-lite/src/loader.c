@@ -1,5 +1,11 @@
 #include <proc.h>
 #include <elf.h>
+#include <common.h>
+
+/* declare ramdisk helpers (defined in ramdisk.c) */
+size_t ramdisk_read(void *buf, size_t offset, size_t len);
+size_t ramdisk_write(const void *buf, size_t offset, size_t len);
+size_t get_ramdisk_size(void);
 
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
@@ -9,9 +15,65 @@
 # define Elf_Phdr Elf32_Phdr
 #endif
 
+/* expected ELF e_machine for this build */
+#if defined(__ISA_AM_NATIVE__)
+# define EXPECT_TYPE EM_X86_64
+#elif defined(__ISA_X86__)
+# ifdef __LP64__
+#  define EXPECT_TYPE EM_X86_64
+# else
+#  define EXPECT_TYPE EM_386
+# endif
+#elif defined(__ISA_MIPS32__)
+# define EXPECT_TYPE EM_MIPS
+#elif defined(__riscv)
+# define EXPECT_TYPE EM_RISCV
+#else
+# error "Unsupported ISA for loader ELF check"
+#endif
+
 static uintptr_t loader(PCB *pcb, const char *filename) {
-  TODO();
-  return 0;
+  Elf_Ehdr ehdr;
+  /* read ELF header from ramdisk (offset 0) */
+  ramdisk_read(&ehdr, 0, sizeof(Elf_Ehdr));
+
+  /* basic ELF magic check */
+  assert(ehdr.e_ident[EI_MAG0] == ELFMAG0 &&
+         ehdr.e_ident[EI_MAG1] == ELFMAG1 &&
+         ehdr.e_ident[EI_MAG2] == ELFMAG2 &&
+         ehdr.e_ident[EI_MAG3] == ELFMAG3);
+
+  /* ensure the ELF is for the current ISA */
+  assert(ehdr.e_machine == EXPECT_TYPE);
+
+  /* iterate program headers and load PT_LOAD segments */
+  for (int i = 0; i < ehdr.e_phnum; i++) {
+    Elf_Phdr ph;
+    size_t ph_off = (size_t)ehdr.e_phoff + i * (size_t)ehdr.e_phentsize;
+    ramdisk_read(&ph, ph_off, sizeof(Elf_Phdr));
+
+    if (ph.p_type == PT_LOAD) {
+      /* ensure we don't read past ramdisk */
+      assert((size_t)ph.p_offset + (size_t)ph.p_filesz <= get_ramdisk_size());
+
+      void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;
+
+      /* load file contents into memory at p_vaddr */
+      if (ph.p_filesz > 0) {
+        ramdisk_read(seg_dst, (size_t)ph.p_offset, (size_t)ph.p_filesz);
+      }
+
+      /* zero the remaining memory from p_vaddr + p_filesz to p_vaddr + p_memsz */
+      if (ph.p_memsz > ph.p_filesz) {
+        memset((char *)seg_dst + ph.p_filesz, 0, (size_t)(ph.p_memsz - ph.p_filesz));
+      }
+
+      Log("Loaded segment: off=0x%x vaddr=%p filesz=%u memsz=%u",
+          (unsigned)ph.p_offset, (void *)ph.p_vaddr, (unsigned)ph.p_filesz, (unsigned)ph.p_memsz);
+    }
+  }
+
+  return (uintptr_t)ehdr.e_entry;
 }
 
 void naive_uload(PCB *pcb, const char *filename) {
