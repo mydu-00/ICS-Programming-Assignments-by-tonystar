@@ -6,7 +6,7 @@
 #endif
 
 #ifndef SYS_exit
-#define SYS_exit 60
+#define SYS_exit 0
 #endif
 
 /* perform syscall handling; set return value via c->GPRx */

@@ -26,9 +26,13 @@ struct Context {
 _Static_assert(offsetof(struct Context, mcause) == sizeof(uintptr_t) * NR_REGS,
                "Context layout mismatch with trap.S");
 
-/* 强制使用 a7 作为 syscall 号寄存器，忽略 rv32e 分支，避免编译宏不一致 */
-#undef GPR1
+#ifdef __riscv_e
+/* E-extension ABI: syscall number in a5 (x15) */
+#define GPR1 gpr[15]   /* a5 */
+#else
+/* normal RV ABI: syscall number in a7 (x17) */
 #define GPR1 gpr[17]   /* a7 */
+#endif
 
 /* argument registers: a0..a2 = x10..x12 */
 #define GPR2 gpr[10]   /* a0 */
