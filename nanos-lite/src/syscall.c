@@ -19,8 +19,7 @@ void do_syscall(Context *c) {
   }
 
   switch (id) {
-    case SYS_yield:
-      yield();          
+    case SYS_yield:         
       c->GPRx = 0;
       break;
 
