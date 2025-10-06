@@ -8,11 +8,15 @@ Context* __am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
     switch (c->mcause) {
-      case 8:  /* ecall from U */
-      case 11: /* ecall from M */
+      case 8:
+      case 11:
 #ifdef __riscv_e
+        printf("[trap] mcause=%lx a5(x15)=0x%lx a7(x17)=<unused>\n",
+               (unsigned long)c->mcause, (unsigned long)c->gpr[15]);
         if (c->gpr[15] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #else
+        printf("[trap] mcause=%lx a7(x17)=0x%lx\n",
+               (unsigned long)c->mcause, (unsigned long)c->gpr[17]);
         if (c->gpr[17] == (uintptr_t)-1) ev.event = EVENT_YIELD;
 #endif
         else ev.event = EVENT_SYSCALL;
@@ -21,12 +25,9 @@ Context* __am_irq_handle(Context *c) {
       case 0x8000000b: ev.event = EVENT_IRQ_IODEV; break;
       default: ev.event = EVENT_ERROR; break;
     }
-
-    /* 如果是 ecall/自陷（同期异常），把保存的 mepc 增加 4，返回到下一条指令 */
     if (ev.event == EVENT_YIELD || ev.event == EVENT_SYSCALL) {
       c->mepc = (uintptr_t)(c->mepc + 4);
     }
-
     c = user_handler(ev, c);
     assert(c != NULL);
   }

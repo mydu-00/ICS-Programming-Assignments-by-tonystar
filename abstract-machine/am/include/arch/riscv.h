@@ -42,4 +42,8 @@ _Static_assert(offsetof(struct Context, mcause) == sizeof(uintptr_t) * NR_REGS,
 /* return value register: a0 (x10) */
 #define GPRx gpr[10]   /* a0 */
 
+#ifdef __riscv_e
+#pragma message("Building for RV32E: syscall number register = a5 (x15)")
+#endif
+
 #endif
