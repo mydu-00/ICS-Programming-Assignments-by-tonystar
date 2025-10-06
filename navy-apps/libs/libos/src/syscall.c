@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <time.h>
 #include "syscall.h"
+#include "sysnr.h"   // 按实际相对路径
 
 // helper macros
 #define _concat(x, y) x ## y
