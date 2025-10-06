@@ -1,7 +1,10 @@
 #include <unistd.h>
 #include <stdio.h>
 
+static char buf[128];
+
 int main() {
+  setvbuf(stdout, buf, _IOLBF, sizeof(buf));
   write(1, "Hello World!\n", 13);
   int i = 2;
   volatile int j = 0;
