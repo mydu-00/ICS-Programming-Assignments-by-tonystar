@@ -89,14 +89,9 @@ void do_syscall(Context *c) {
 
     case SYS_write: {
       int fd = (int)arg0;
-      const char *buf = (const char *)arg1;
+      const void *buf = (const void *)arg1;
       size_t len = (size_t)arg2;
-      if ((fd == 1 || fd == 2) && buf) {
-        for (size_t i = 0; i < len; i++) putch(buf[i]);
-        c->GPRx = len;
-      } else {
-        c->GPRx = -1;
-      }
+      c->GPRx = fs_write(fd, buf, len);
       break;
     }
 
