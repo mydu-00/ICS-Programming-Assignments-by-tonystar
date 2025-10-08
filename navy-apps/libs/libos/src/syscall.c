@@ -7,6 +7,7 @@
 #include "syscall.h"
 #include <reent.h>
 #include <errno.h>
+#include <sys/types.h>
 
 static uintptr_t program_break = 0;  // 新增
 
@@ -66,12 +67,15 @@ void _exit(int status) {
 }
 
 int _open(const char *path, int flags, mode_t mode) {
-  _exit(SYS_open);
-  return 0;
+  return (int)_syscall_(SYS_open, (intptr_t)path, flags, mode);
 }
 
 int _write(int fd, void *buf, size_t count) {
   return (int)_syscall_( SYS_write, fd, (intptr_t)buf, count );
+}
+
+int _read(int fd, void *buf, size_t count) {
+  return (int)_syscall_(SYS_read, fd, (intptr_t)buf, count);
 }
 
 void *_sbrk(intptr_t increment) {
@@ -90,19 +94,12 @@ void *_sbrk(intptr_t increment) {
   return (void *)-1;
 }
 
-int _read(int fd, void *buf, size_t count) {
-  _exit(SYS_read);
-  return 0;
-}
-
 int _close(int fd) {
-  _exit(SYS_close);
-  return 0;
+  return (int)_syscall_(SYS_close, fd, 0, 0);
 }
 
 off_t _lseek(int fd, off_t offset, int whence) {
-  _exit(SYS_lseek);
-  return 0;
+  return (off_t)_syscall_(SYS_lseek, fd, offset, whence);
 }
 
 int _gettimeofday(struct timeval *tv, struct timezone *tz) {

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <fs.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
 
@@ -40,6 +41,10 @@ extern int mm_brk(uintptr_t brk);  // 新增声明
       case SYS_yield: return "yield";
       case SYS_write: return "write";
       case SYS_brk:   return "brk";
+      case SYS_open:  return "open";
+      case SYS_read:  return "read";
+      case SYS_close: return "close";
+      case SYS_lseek: return "lseek";
       default:        return "unknown";
     }
   }
@@ -60,6 +65,17 @@ void do_syscall(Context *c) {
   } else if (id == SYS_write) {
     STRACE_PRINT("[strace] %s(%d,%p,%u)",
       name, (int)arg0, (void*)arg1, (unsigned)arg2);
+  } else if (id == SYS_open) {
+    STRACE_PRINT("[strace] %s(%p,%d,%d)", name,
+                 (void *)arg0, (int)arg1, (int)arg2);
+  } else if (id == SYS_read) {
+    STRACE_PRINT("[strace] %s(%d,%p,%u)", name,
+                 (int)arg0, (void *)arg1, (unsigned)arg2);
+  } else if (id == SYS_close) {
+    STRACE_PRINT("[strace] %s(%d)", name, (int)arg0);
+  } else if (id == SYS_lseek) {
+    STRACE_PRINT("[strace] %s(%d,%u,%d)", name,
+                 (int)arg0, (unsigned)arg1, (int)arg2);
   } else {
     STRACE_PRINT("[strace] %s(%u,%u,%u)", name,
                  (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);
@@ -84,6 +100,22 @@ void do_syscall(Context *c) {
       break;
     }
 
+    case SYS_open:
+      c->GPRx = fs_open((const char *)arg0, (int)arg1, (int)arg2);
+      break;
+
+    case SYS_read:
+      c->GPRx = fs_read((int)arg0, (void *)arg1, (size_t)arg2);
+      break;
+
+    case SYS_close:
+      c->GPRx = fs_close((int)arg0);
+      break;
+
+    case SYS_lseek:
+      c->GPRx = fs_lseek((int)arg0, (size_t)arg1, (int)arg2);
+      break;
+
     case SYS_brk: {
       int ret = mm_brk(arg0);
       c->GPRx = ret;
@@ -106,11 +138,7 @@ void do_syscall(Context *c) {
 
 #ifdef CONFIG_STRACE
   if (id != SYS_exit) {
-    if (id == SYS_write) {
       STRACE_PRINT(" = %d\n", (int)c->GPRx);
-    } else {
-      STRACE_PRINT(" = %d\n", (int)c->GPRx);
-    }
   }
 #endif
 }
