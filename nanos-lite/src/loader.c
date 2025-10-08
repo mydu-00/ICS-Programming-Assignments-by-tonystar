@@ -3,6 +3,8 @@
 #include <common.h>
 #include <fs.h>   // 这里不需要 CONFIG_MBASE
 
+#define CONFIG_MBASE 0x80000000u
+
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
 # define Elf_Phdr Elf64_Phdr
@@ -58,7 +60,8 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
     assert(n == sizeof(Elf_Phdr));
 
     if (ph.p_type == PT_LOAD) {
-      void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;  // 直接用 p_vaddr
+      uintptr_t dest = ph.p_vaddr + CONFIG_MBASE;
+      void *seg_dst = (void *)dest;
 
       if (ph.p_filesz > 0) {
         fs_lseek(fd, ph.p_offset, SEEK_SET);
@@ -76,7 +79,7 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   }
 
   fs_close(fd);
-  return (uintptr_t)ehdr.e_entry;  // 同样不要再偏移
+  return (uintptr_t)(ehdr.e_entry + CONFIG_MBASE);
 }
 
 void naive_uload(PCB *pcb, const char *filename) {
