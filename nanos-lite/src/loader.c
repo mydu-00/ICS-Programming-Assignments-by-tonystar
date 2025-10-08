@@ -1,9 +1,7 @@
 #include <proc.h>
 #include <elf.h>
 #include <common.h>
-#include <fs.h>
-//#include "generated/autoconf.h" // 确保包含了 CONFIG_MBASE
-#define CONFIG_MBASE 0x80000000
+#include <fs.h>   // 这里不需要 CONFIG_MBASE
 
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
@@ -60,17 +58,14 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
     assert(n == sizeof(Elf_Phdr));
 
     if (ph.p_type == PT_LOAD) {
-      // 加上 CONFIG_MBASE
-      void *seg_dst = (void *)(uintptr_t)(ph.p_vaddr + CONFIG_MBASE);
+      void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;  // 直接用 p_vaddr
 
-      /* load file contents into memory at p_vaddr */
       if (ph.p_filesz > 0) {
         fs_lseek(fd, ph.p_offset, SEEK_SET);
         n = fs_read(fd, seg_dst, (size_t)ph.p_filesz);
         assert(n == (size_t)ph.p_filesz);
       }
 
-      /* zero the remaining memory from p_vaddr + p_filesz to p_vaddr + p_memsz */
       if (ph.p_memsz > ph.p_filesz) {
         memset((char *)seg_dst + ph.p_filesz, 0, (size_t)(ph.p_memsz - ph.p_filesz));
       }
@@ -81,8 +76,7 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   }
 
   fs_close(fd);
-  // entry 也加上 CONFIG_MBASE
-  return (uintptr_t)(ehdr.e_entry + CONFIG_MBASE);
+  return (uintptr_t)ehdr.e_entry;  // 同样不要再偏移
 }
 
 void naive_uload(PCB *pcb, const char *filename) {
