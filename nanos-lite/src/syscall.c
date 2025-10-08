@@ -63,19 +63,30 @@ void do_syscall(Context *c) {
   } else if (id == SYS_yield) {
     STRACE_PRINT("[strace] %s()", name);
   } else if (id == SYS_write) {
-    STRACE_PRINT("[strace] %s(%d,%p,%u)",
-      name, (int)arg0, (void*)arg1, (unsigned)arg2);
+    const char *fdname = fs_getname((int)arg0);
+    if (fdname) {
+      STRACE_PRINT("[strace] %s(\"%s\",%p,%u)", name, fdname, (void*)arg1, (unsigned)arg2);
+    } else {
+      STRACE_PRINT("[strace] %s(%d,%p,%u)", name, (int)arg0, (void*)arg1, (unsigned)arg2);
+    }
   } else if (id == SYS_open) {
     STRACE_PRINT("[strace] %s(%p,%d,%d)", name,
                  (void *)arg0, (int)arg1, (int)arg2);
   } else if (id == SYS_read) {
-    STRACE_PRINT("[strace] %s(%d,%p,%u)", name,
-                 (int)arg0, (void *)arg1, (unsigned)arg2);
+    const char *fdname = fs_getname((int)arg0);
+    if (fdname) {
+      STRACE_PRINT("[strace] %s(\"%s\",%p,%u)", name, fdname, (void *)arg1, (unsigned)arg2);
+    } else {
+      STRACE_PRINT("[strace] %s(%d,%p,%u)", name, (int)arg0, (void *)arg1, (unsigned)arg2);
+    }
   } else if (id == SYS_close) {
-    STRACE_PRINT("[strace] %s(%d)", name, (int)arg0);
+    const char *fdname = fs_getname((int)arg0);
+    if (fdname) STRACE_PRINT("[strace] %s(\"%s\")", name, fdname);
+    else STRACE_PRINT("[strace] %s(%d)", name, (int)arg0);
   } else if (id == SYS_lseek) {
-    STRACE_PRINT("[strace] %s(%d,%u,%d)", name,
-                 (int)arg0, (unsigned)arg1, (int)arg2);
+    const char *fdname = fs_getname((int)arg0);
+    if (fdname) STRACE_PRINT("[strace] %s(\"%s\",%u,%d)", name, fdname, (unsigned)arg1, (int)arg2);
+    else STRACE_PRINT("[strace] %s(%d,%u,%d)", name, (int)arg0, (unsigned)arg1, (int)arg2);
   } else {
     STRACE_PRINT("[strace] %s(%u,%u,%u)", name,
                  (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);

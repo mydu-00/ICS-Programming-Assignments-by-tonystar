@@ -41,6 +41,11 @@ void init_fs(void) {
   memset(file_offset, 0, sizeof(file_offset));
 }
 
+const char *fs_getname(int fd) {
+  if (fd < 0 || fd >= (int)NR_FILES) return NULL;
+  return file_table[fd].name;
+}
+
 int fs_open(const char *pathname, int flags, int mode) {
   (void)flags; (void)mode;
   assert(pathname);

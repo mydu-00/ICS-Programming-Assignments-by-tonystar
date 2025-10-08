@@ -15,4 +15,7 @@ int fs_close(int fd);
 
 void init_fs(void);
 
+/* 返回 fd 对应的文件名（若存在），否则返回 NULL（只用于 strace 输出） */
+const char *fs_getname(int fd);
+
 #endif
