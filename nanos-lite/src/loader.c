@@ -1,6 +1,7 @@
 #include <proc.h>
 #include <elf.h>
 #include <common.h>
+#include <fs.h>               // added
 
 /* declare ramdisk helpers (defined in ramdisk.c) */
 size_t ramdisk_read(void *buf, size_t offset, size_t len);
@@ -34,8 +35,14 @@ size_t get_ramdisk_size(void);
 
 static uintptr_t loader(PCB *pcb, const char *filename) {
   Elf_Ehdr ehdr;
-  /* read ELF header from ramdisk (offset 0) */
-  ramdisk_read(&ehdr, 0, sizeof(Elf_Ehdr));
+
+  int fd = fs_open(filename, 0, 0);
+  assert(fd >= 0);
+
+  /* read ELF header from beginning of the file */
+  fs_lseek(fd, 0, SEEK_SET);
+  size_t n = fs_read(fd, &ehdr, sizeof(Elf_Ehdr));
+  assert(n == sizeof(Elf_Ehdr));
 
   /* basic ELF magic check */
   assert(ehdr.e_ident[EI_MAG0] == ELFMAG0 &&
@@ -50,17 +57,19 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
   for (int i = 0; i < ehdr.e_phnum; i++) {
     Elf_Phdr ph;
     size_t ph_off = (size_t)ehdr.e_phoff + i * (size_t)ehdr.e_phentsize;
-    ramdisk_read(&ph, ph_off, sizeof(Elf_Phdr));
+
+    fs_lseek(fd, ph_off, SEEK_SET);
+    n = fs_read(fd, &ph, sizeof(Elf_Phdr));
+    assert(n == sizeof(Elf_Phdr));
 
     if (ph.p_type == PT_LOAD) {
-      /* ensure we don't read past ramdisk */
-      assert((size_t)ph.p_offset + (size_t)ph.p_filesz <= get_ramdisk_size());
-
       void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;
 
       /* load file contents into memory at p_vaddr */
       if (ph.p_filesz > 0) {
-        ramdisk_read(seg_dst, (size_t)ph.p_offset, (size_t)ph.p_filesz);
+        fs_lseek(fd, ph.p_offset, SEEK_SET);
+        n = fs_read(fd, seg_dst, (size_t)ph.p_filesz);
+        assert(n == (size_t)ph.p_filesz);
       }
 
       /* zero the remaining memory from p_vaddr + p_filesz to p_vaddr + p_memsz */
@@ -73,6 +82,7 @@ static uintptr_t loader(PCB *pcb, const char *filename) {
     }
   }
 
+  fs_close(fd);
   return (uintptr_t)ehdr.e_entry;
 }
 
