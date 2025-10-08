@@ -3,11 +3,6 @@
 #include <common.h>
 #include <fs.h>               // added
 
-/* declare ramdisk helpers (defined in ramdisk.c) */
-size_t ramdisk_read(void *buf, size_t offset, size_t len);
-size_t ramdisk_write(const void *buf, size_t offset, size_t len);
-size_t get_ramdisk_size(void);
-
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
 # define Elf_Phdr Elf64_Phdr
