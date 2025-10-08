@@ -1,9 +1,7 @@
 #include <proc.h>
 #include <elf.h>
 #include <common.h>
-#include <fs.h>
-
-#define CONFIG_MBASE 0x80000000u
+#include <fs.h>   // 这里不需要 CONFIG_MBASE
 
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
@@ -30,52 +28,60 @@
 # error "Unsupported ISA for loader ELF check"
 #endif
 
-static inline uintptr_t phys_addr(uintptr_t va) {
-  // 只有当编译出的 ELF 段地址还没带物理基址时再补
-  if (va < CONFIG_MBASE) return va + CONFIG_MBASE;
-  return va;
-}
-
 static uintptr_t loader(PCB *pcb, const char *filename) {
-  (void)pcb;
-  Elf_Ehdr eh;
+  Elf_Ehdr ehdr;
+
   int fd = fs_open(filename, 0, 0);
+  assert(fd >= 0);
+
+  /* read ELF header from beginning of the file */
   fs_lseek(fd, 0, SEEK_SET);
-  assert(fs_read(fd, &eh, sizeof(eh)) == sizeof(eh));
+  size_t n = fs_read(fd, &ehdr, sizeof(Elf_Ehdr));
+  assert(n == sizeof(Elf_Ehdr));
 
-  assert(eh.e_ident[EI_MAG0] == ELFMAG0 &&
-         eh.e_ident[EI_MAG1] == ELFMAG1 &&
-         eh.e_ident[EI_MAG2] == ELFMAG2 &&
-         eh.e_ident[EI_MAG3] == ELFMAG3);
-  assert(eh.e_machine == EXPECT_TYPE);
+  /* basic ELF magic check */
+  assert(ehdr.e_ident[EI_MAG0] == ELFMAG0 &&
+         ehdr.e_ident[EI_MAG1] == ELFMAG1 &&
+         ehdr.e_ident[EI_MAG2] == ELFMAG2 &&
+         ehdr.e_ident[EI_MAG3] == ELFMAG3);
 
-  for (int i = 0; i < eh.e_phnum; i++) {
+  /* ensure the ELF is for the current ISA */
+  assert(ehdr.e_machine == EXPECT_TYPE);
+
+  /* iterate program headers and load PT_LOAD segments */
+  for (int i = 0; i < ehdr.e_phnum; i++) {
     Elf_Phdr ph;
-    size_t off = eh.e_phoff + i * eh.e_phentsize;
-    fs_lseek(fd, off, SEEK_SET);
-    assert(fs_read(fd, &ph, sizeof(ph)) == sizeof(ph));
-    if (ph.p_type != PT_LOAD) continue;
+    size_t ph_off = (size_t)ehdr.e_phoff + i * (size_t)ehdr.e_phentsize;
 
-    uintptr_t dest = phys_addr(ph.p_vaddr);
-    if (ph.p_filesz) {
-      fs_lseek(fd, ph.p_offset, SEEK_SET);
-      assert(fs_read(fd, (void *)dest, ph.p_filesz) == ph.p_filesz);
+    fs_lseek(fd, ph_off, SEEK_SET);
+    n = fs_read(fd, &ph, sizeof(Elf_Phdr));
+    assert(n == sizeof(Elf_Phdr));
+
+    if (ph.p_type == PT_LOAD) {
+      void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;  // 直接用 p_vaddr
+
+      if (ph.p_filesz > 0) {
+        fs_lseek(fd, ph.p_offset, SEEK_SET);
+        n = fs_read(fd, seg_dst, (size_t)ph.p_filesz);
+        assert(n == (size_t)ph.p_filesz);
+      }
+
+      if (ph.p_memsz > ph.p_filesz) {
+        memset((char *)seg_dst + ph.p_filesz, 0, (size_t)(ph.p_memsz - ph.p_filesz));
+      }
+
+      Log("Loaded segment: off=0x%x vaddr=%p filesz=%u memsz=%u",
+          (unsigned)ph.p_offset, (void *)ph.p_vaddr, (unsigned)ph.p_filesz, (unsigned)ph.p_memsz);
     }
-    if (ph.p_memsz > ph.p_filesz) {
-      memset((void *)(dest + ph.p_filesz), 0, ph.p_memsz - ph.p_filesz);
-    }
-    Log("SEG load: p_vaddr=0x%08x phys=0x%08x file=0x%x mem=0x%x",
-        (unsigned)ph.p_vaddr, (unsigned)dest,
-        (unsigned)ph.p_filesz, (unsigned)ph.p_memsz);
   }
+
   fs_close(fd);
-  uintptr_t entry = phys_addr(eh.e_entry);
-  Log("ELF entry v=0x%08x phys=0x%08x", (unsigned)eh.e_entry, (unsigned)entry);
-  return entry;
+  return (uintptr_t)ehdr.e_entry;  // 同样不要再偏移
 }
 
 void naive_uload(PCB *pcb, const char *filename) {
   uintptr_t entry = loader(pcb, filename);
-  ((void(*)())entry)();
+  Log("Jump to entry = %p", entry);
+  ((void(*)())entry) ();
 }
 
