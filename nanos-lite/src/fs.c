@@ -8,7 +8,7 @@ typedef size_t (*ReadFn) (void *buf, size_t offset, size_t len);
 typedef size_t (*WriteFn) (const void *buf, size_t offset, size_t len);
 
 typedef struct {
-  char *name;
+  const char *name;
   size_t size;
   size_t disk_offset;
   ReadFn read;
@@ -44,6 +44,8 @@ void init_fs(void) {
 
 int fs_open(const char *pathname, int flags, int mode) {
   (void)flags; (void)mode;
+  assert(pathname != NULL);
+  Log("fs_open: path='%s'", pathname);
   for (int i = 0; i < NR_FILES; i++) {
     if (file_table[i].name && strcmp(file_table[i].name, pathname) == 0) {
       file_offset[i] = 0;
