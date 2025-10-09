@@ -1,23 +1,23 @@
 #include <stdio.h>
-#include <sys/time.h>
-
-static long long usec_diff(const struct timeval *a, const struct timeval *b) {
-  return (a->tv_sec - b->tv_sec) * 1000000LL + (a->tv_usec - b->tv_usec);
-}
+#include <stdint.h>
+#include <NDL.h>
 
 int main(void) {
-  const long long interval = 500000;   // 0.5 s
-  struct timeval ref, now;
-
-  if (gettimeofday(&ref, NULL) != 0) return 1;
+  const uint32_t interval = 500;  // ms
+  NDL_Init(0);
+  uint32_t start = NDL_GetTicks();
 
   for (int i = 1; i <= 6; i++) {
+    uint32_t target = start + i * interval;
+    uint32_t now;
     do {
-      gettimeofday(&now, NULL);
-    } while (usec_diff(&now, &ref) < i * interval);
+      now = NDL_GetTicks();
+    } while ((int32_t)(target - now) > 0);
 
-    printf("[timer-test] tick %d at %ld.%06ld\n",
-           i, (long)now.tv_sec, (long)now.tv_usec);
+    printf("[timer-test] tick %d at %u.%03u\n",
+           i, now / 1000, now % 1000);
   }
+
+  NDL_Quit();
   return 0;
 }
