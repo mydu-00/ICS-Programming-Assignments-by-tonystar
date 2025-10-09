@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <fs.h>
+#include <klib-macros.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
 
@@ -45,6 +46,7 @@ extern int mm_brk(uintptr_t brk);  // 新增声明
       case SYS_read:  return "read";
       case SYS_close: return "close";
       case SYS_lseek: return "lseek";
+      case SYS_gettimeofday: return "gettimeofday";
       default:        return "unknown";
     }
   }
@@ -87,6 +89,8 @@ void do_syscall(Context *c) {
     const char *fdname = fs_getname((int)arg0);
     if (fdname) STRACE_PRINT("[strace] %s(\"%s\",%u,%d)", name, fdname, (unsigned)arg1, (int)arg2);
     else STRACE_PRINT("[strace] %s(%d,%u,%d)", name, (int)arg0, (unsigned)arg1, (int)arg2);
+  } else if (id == SYS_gettimeofday) {
+    STRACE_PRINT("[strace] %s(%p,%p)", name, (void *)arg0, (void *)arg1);
   } else {
     STRACE_PRINT("[strace] %s(%u,%u,%u)", name,
                  (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);
@@ -134,6 +138,17 @@ void do_syscall(Context *c) {
 #endif
       halt((int)arg0);
       break;
+
+    case SYS_gettimeofday: {
+      AM_TIMER_UPTIME_T uptime = io_read(AM_TIMER_UPTIME);
+      if ((struct timeval *)arg0) {
+        struct timeval *tv = (struct timeval *)arg0;
+        tv->tv_sec  = uptime.us / 1000000;
+        tv->tv_usec = uptime.us % 1000000;
+      }
+      c->GPRx = 0;
+      break;
+    }
 
     default:
 #ifdef CONFIG_STRACE
