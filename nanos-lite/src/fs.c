@@ -5,6 +5,9 @@ extern size_t ramdisk_read(void *buf, size_t offset, size_t len);
 extern size_t ramdisk_write(const void *buf, size_t offset, size_t len);
 extern size_t serial_write(const void *buf, size_t offset, size_t len);
 extern size_t events_read(void *buf, size_t offset, size_t len);
+extern size_t dispinfo_read(void *buf, size_t offset, size_t len);
+extern size_t fb_write(const void *buf, size_t offset, size_t len);
+extern size_t fb_size(void);
 
 typedef size_t (*ReadFn)(void *buf, size_t offset, size_t len);
 typedef size_t (*WriteFn)(const void *buf, size_t offset, size_t len);
@@ -34,6 +37,8 @@ static Finfo file_table[] __attribute__((used)) = {
   [FD_STDOUT] = {"stdout", 0, 0, invalid_read, serial_write},
   [FD_STDERR] = {"stderr", 0, 0, invalid_read, serial_write},
   {"/dev/events", 0, 0, events_read, invalid_write},
+  {"/dev/fb", 0, 0, invalid_read, fb_write},
+  {"/proc/dispinfo", 0, 0, dispinfo_read, invalid_write},
 #include "files.h"
 };
 
@@ -42,6 +47,14 @@ static size_t file_offset[NR_FILES];
 
 void init_fs(void) {
   memset(file_offset, 0, sizeof(file_offset));
+  size_t fb_sz = fb_size();
+  for (int i = 0; i < NR_FILES; i++) {
+    if (file_table[i].name &&
+        strcmp(file_table[i].name, "/dev/fb") == 0) {
+      file_table[i].size = fb_sz;
+      break;
+    }
+  }
 }
 
 const char *fs_getname(int fd) {
@@ -83,11 +96,6 @@ size_t fs_read(int fd, void *buf, size_t len) {
 size_t fs_write(int fd, const void *buf, size_t len) {
   assert(fd >= 0 && fd < NR_FILES);
   if (len == 0) return 0;
-  if (fd == FD_STDOUT || fd == FD_STDERR) {
-    const char *p = buf;
-    for (size_t i = 0; i < len; i++) putch(p[i]);
-    return len;
-  }
   if (fd == FD_STDIN) return 0;
 
   Finfo *f = &file_table[fd];
