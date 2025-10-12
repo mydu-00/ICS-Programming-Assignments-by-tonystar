@@ -28,7 +28,7 @@ void init_proc() {
   Log("Initializing processes...");
 
   /* load program here */
-  naive_uload(current, "/bin/timer-test");
+  naive_uload(current, "/bin/event-test");
 }
 
 Context* schedule(Context *prev) {
