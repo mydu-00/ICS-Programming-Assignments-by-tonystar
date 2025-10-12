@@ -77,8 +77,12 @@ void NDL_OpenCanvas(int *w, int *h) {
 
   canvas_w = *w;
   canvas_h = *h;
-  canvas_x = 0;
-  canvas_y = 0;
+
+  /* center the canvas on the screen for better visual effect */
+  canvas_x = (screen_w - canvas_w) / 2;
+  canvas_y = (screen_h - canvas_h) / 2;
+  if (canvas_x < 0) canvas_x = 0;
+  if (canvas_y < 0) canvas_y = 0;
 
   if (getenv("NWM_APP")) {
     int fbctl = 4;
