@@ -3,16 +3,86 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 void SDL_BlitSurface(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_Rect *dstrect) {
   assert(dst && src);
   assert(dst->format->BitsPerPixel == src->format->BitsPerPixel);
+
+  SDL_Rect src_area = {0, 0, src->w, src->h};
+  if (srcrect) src_area = *srcrect;
+  SDL_Rect dst_area = {0, 0, src_area.w, src_area.h};
+  if (dstrect) dst_area = *dstrect;
+
+  assert(src_area.x >= 0 && src_area.y >= 0);
+  assert(src_area.x + src_area.w <= src->w);
+  assert(src_area.y + src_area.h <= src->h);
+  assert(dst_area.x >= 0 && dst_area.y >= 0);
+  assert(dst_area.x + src_area.w <= dst->w);
+  assert(dst_area.y + src_area.h <= dst->h);
+
+  const int bpp = src->format->BytesPerPixel;
+  for (int row = 0; row < src_area.h; row++) {
+    uint8_t *sp = (uint8_t *)src->pixels + (src_area.y + row) * src->pitch + src_area.x * bpp;
+    uint8_t *dp = (uint8_t *)dst->pixels + (dst_area.y + row) * dst->pitch + dst_area.x * bpp;
+    memcpy(dp, sp, (size_t)src_area.w * bpp);
+  }
 }
 
 void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
+  assert(dst);
+  SDL_Rect area = {0, 0, dst->w, dst->h};
+  if (dstrect) area = *dstrect;
+
+  assert(area.x >= 0 && area.y >= 0);
+  assert(area.x + area.w <= dst->w);
+  assert(area.y + area.h <= dst->h);
+
+  const int bpp = dst->format->BytesPerPixel;
+  for (int row = 0; row < area.h; row++) {
+    uint8_t *dp = (uint8_t *)dst->pixels + (area.y + row) * dst->pitch + area.x * bpp;
+    if (bpp == 1) {
+      memset(dp, (int)(color & 0xff), (size_t)area.w);
+    } else if (bpp == 4) {
+      uint32_t *d32 = (uint32_t *)dp;
+      for (int col = 0; col < area.w; col++) d32[col] = color;
+    } else {
+      fprintf(stderr, "[miniSDL] SDL_FillRect() unsupported bpp=%d\n", bpp);
+      break;
+    }
+  }
 }
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
+  if (!(s->flags & SDL_HWSURFACE)) return;
+  if (s->format->BitsPerPixel != 32) {
+    fprintf(stderr, "[miniSDL] SDL_UpdateRect() only handles 32bpp surfaces\n");
+    return;
+  }
+  if (w == 0 || h == 0) {
+    x = 0; y = 0; w = s->w; h = s->h;
+  }
+
+  assert(x >= 0 && y >= 0 && x + w <= s->w && y + h <= s->h);
+
+  size_t pitch_bytes = (size_t)s->pitch;
+  if (pitch_bytes == (size_t)s->w * 4 && x == 0 && w == s->w) {
+    uint32_t *data = (uint32_t *)((uint8_t *)s->pixels + y * pitch_bytes);
+    NDL_DrawRect(data, 0, y, w, h);
+    return;
+  }
+
+  uint32_t *tmp = malloc((size_t)w * h * sizeof(uint32_t));
+  if (!tmp) {
+    fprintf(stderr, "[miniSDL] SDL_UpdateRect() out of memory\n");
+    return;
+  }
+  for (int row = 0; row < h; row++) {
+    uint32_t *src_row = (uint32_t *)((uint8_t *)s->pixels + (y + row) * pitch_bytes + x * 4);
+    memcpy(tmp + row * w, src_row, (size_t)w * sizeof(uint32_t));
+  }
+  NDL_DrawRect(tmp, x, y, w, h);
+  free(tmp);
 }
 
 // APIs below are already implemented.
