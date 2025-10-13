@@ -27,7 +27,6 @@ static void ensure_dispinfo(void) {
   int w = 0, h = 0;
   if (sscanf(buf, "%*[^0-9]%d%*[^0-9]%d", &w, &h) == 2) {
     screen_w = w; screen_h = h;
-    printf("[NDL] screen %dx%d\n", screen_w, screen_h);
   }
 }
 
