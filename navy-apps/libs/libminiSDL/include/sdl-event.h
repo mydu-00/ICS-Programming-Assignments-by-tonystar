@@ -37,6 +37,7 @@ typedef struct {
 
 typedef struct {
   uint8_t type;
+  uint8_t state;
   SDL_keysym keysym;
 } SDL_KeyboardEvent;
 
@@ -58,5 +59,8 @@ int SDL_PollEvent(SDL_Event *ev);
 int SDL_WaitEvent(SDL_Event *ev);
 int SDL_PeepEvents(SDL_Event *ev, int numevents, int action, uint32_t mask);
 uint8_t* SDL_GetKeyState(int *numkeys);
+
+#define SDL_RELEASED 0
+#define SDL_PRESSED  1
 
 #endif

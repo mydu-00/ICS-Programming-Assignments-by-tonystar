@@ -5,14 +5,20 @@
 #include <string.h>
 #include <unistd.h>
 
-#define keyname(k) #k,
-
 #define EVENT_QUEUE_SIZE 64
+
+// Build a keyname table that matches enum SDL_Keys order.
+#define KEYSTR(k) #k
+static const char *const keynames[] = {
+  "NONE",
+  _KEYS(KEYSTR)
+};
+enum { KEY_COUNT = (int)(sizeof(keynames) / sizeof(keynames[0])) };
 
 static SDL_Event event_queue[EVENT_QUEUE_SIZE];
 static int queue_head = 0;
 static int queue_tail = 0;
-static uint8_t key_states[SDLK_LAST] = {0};
+static uint8_t key_states[KEY_COUNT] = {0};
 
 static int queue_is_empty(void) {
   return queue_head == queue_tail;
@@ -37,8 +43,8 @@ static int queue_pop(SDL_Event *ev) {
 }
 
 static int keyname_to_sym(const char *name) {
-  for (int i = 0; i < (int)(sizeof(keyname) / sizeof(keyname[0])); i++) {
-    if (strcmp(name, keyname[i]) == 0) return i;
+  for (int i = 0; i < KEY_COUNT; i++) {
+    if (strcmp(name, keynames[i]) == 0) return i;
   }
   return -1;
 }
@@ -54,7 +60,7 @@ static void pump_events(void) {
       continue;
     }
     int sym = keyname_to_sym(key);
-    if (sym < 0) {
+    if (sym < 0 || sym >= KEY_COUNT) {
       fprintf(stderr, "[miniSDL] Unknown key: %s\n", key);
       continue;
     }
@@ -72,7 +78,7 @@ static void pump_events(void) {
       fprintf(stderr, "[miniSDL] Unknown event type: %s\n", type);
       continue;
     }
-    ev.key.keysym.sym = sym;
+    ev.key.keysym.sym = (uint8_t)sym;
     queue_push(&ev);
   }
 }
@@ -89,9 +95,15 @@ int SDL_PollEvent(SDL_Event *ev) {
 }
 
 int SDL_WaitEvent(SDL_Event *event) {
-  while (!SDL_PollEvent(event)) {
+  /* wait until an event arrives. avoid calling usleep() (missing at link time
+     on some targets) by doing a short tick-based spin */
+  while (1) {
+    if (SDL_PollEvent(event)) return 1;
     pump_events();
-    usleep(1000);
+    uint32_t start = NDL_GetTicks();
+    while ((NDL_GetTicks() - start) < 1) {
+      /* busy-wait ~1ms */
+    }
   }
   return 1;
 }
@@ -118,6 +130,6 @@ int SDL_PeepEvents(SDL_Event *ev, int numevents, int action, uint32_t mask) {
 }
 
 uint8_t* SDL_GetKeyState(int *numkeys) {
-  if (numkeys) *numkeys = SDLK_LAST;
+  if (numkeys) *numkeys = KEY_COUNT;
   return key_states;
 }
