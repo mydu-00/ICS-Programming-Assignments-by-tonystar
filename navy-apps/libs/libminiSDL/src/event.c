@@ -43,8 +43,27 @@ static int queue_pop(SDL_Event *ev) {
 }
 
 static int keyname_to_sym(const char *name) {
+  if (!name || !*name) return -1;
+
+  // strip optional "KEY_" prefix
+  if (strncmp(name, "KEY_", 4) == 0) name += 4;
+
+  // normalize to upper-case
+  char norm[32];
+  size_t n = 0;
+  for (; name[n] && n < sizeof(norm) - 1; n++) {
+    char c = name[n];
+    if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+    norm[n] = c;
+  }
+  norm[n] = '\0';
+
+  // common aliases
+  if (strcmp(norm, "ENTER") == 0) strcpy(norm, "RETURN");
+  if (strcmp(norm, "ESC") == 0) strcpy(norm, "ESCAPE");
+
   for (int i = 0; i < KEY_COUNT; i++) {
-    if (strcmp(name, keynames[i]) == 0) return i;
+    if (strcmp(norm, keynames[i]) == 0) return i;
   }
   return -1;
 }
@@ -95,8 +114,7 @@ int SDL_PollEvent(SDL_Event *ev) {
 }
 
 int SDL_WaitEvent(SDL_Event *event) {
-  /* wait until an event arrives. avoid calling usleep() (missing at link time
-     on some targets) by doing a short tick-based spin */
+  /* avoid usleep() (may be missing at link time) by doing a short tick spin */
   while (1) {
     if (SDL_PollEvent(event)) return 1;
     pump_events();
