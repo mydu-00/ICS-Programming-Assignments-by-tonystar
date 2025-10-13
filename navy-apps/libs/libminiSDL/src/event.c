@@ -8,10 +8,10 @@
 #define EVENT_QUEUE_SIZE 64
 
 // Build a keyname table that matches enum SDL_Keys order.
-#define KEYSTR(k) #k
+#define STR_ITEM(k) #k,
 static const char *const keynames[] = {
   "NONE",
-  _KEYS(KEYSTR)
+  _KEYS(STR_ITEM)
 };
 enum { KEY_COUNT = (int)(sizeof(keynames) / sizeof(keynames[0])) };
 
@@ -61,6 +61,8 @@ static int keyname_to_sym(const char *name) {
   // common aliases
   if (strcmp(norm, "ENTER") == 0) strcpy(norm, "RETURN");
   if (strcmp(norm, "ESC") == 0) strcpy(norm, "ESCAPE");
+  if (strcmp(norm, "PGUP") == 0) strcpy(norm, "PAGEUP");
+  if (strcmp(norm, "PGDN") == 0) strcpy(norm, "PAGEDOWN");
 
   for (int i = 0; i < KEY_COUNT; i++) {
     if (strcmp(norm, keynames[i]) == 0) return i;
