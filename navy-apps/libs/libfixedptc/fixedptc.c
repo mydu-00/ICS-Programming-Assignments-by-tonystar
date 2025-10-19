@@ -1,50 +1,50 @@
 #include "fixedptc.h"
 
-fixedpt fixedpt_fromint(int32_t x) {
-    return (fixedpt)((fixedpt)x << FIXEDPT_FBITS);
-}
+// fixedpt fixedpt_fromint(int32_t x) {
+//     return (fixedpt)((fixedpt)x << FIXEDPT_FBITS);
+// }
 
-int32_t fixedpt_toint(fixedpt x) {
-#if FIXEDPT_FBITS > 0
-    return (int32_t)(x >> FIXEDPT_FBITS);
-#else
-    return (int32_t)x;
-#endif
-}
+// int32_t fixedpt_toint(fixedpt x) {
+// #if FIXEDPT_FBITS > 0
+//     return (int32_t)(x >> FIXEDPT_FBITS);
+// #else
+//     return (int32_t)x;
+// #endif
+// }
 
-fixedpt fixedpt_floor(fixedpt x) {
-    fixedpt integer = (fixedpt)((uint32_t)x & ~FIXEDPT_FMASK);
-    if (x < 0 && (x & FIXEDPT_FMASK) != 0)
-        integer -= FIXEDPT_ONE;
-    return integer;
-}
+// fixedpt fixedpt_floor(fixedpt x) {
+//     fixedpt integer = (fixedpt)((uint32_t)x & ~FIXEDPT_FMASK);
+//     if (x < 0 && (x & FIXEDPT_FMASK) != 0)
+//         integer -= FIXEDPT_ONE;
+//     return integer;
+// }
 
-fixedpt fixedpt_ceil(fixedpt x) {
-    fixedpt integer = (fixedpt)((uint32_t)x & ~FIXEDPT_FMASK);
-    if (x > 0 && (x & FIXEDPT_FMASK) != 0)
-        integer += FIXEDPT_ONE;
-    return integer;
-}
+// fixedpt fixedpt_ceil(fixedpt x) {
+//     fixedpt integer = (fixedpt)((uint32_t)x & ~FIXEDPT_FMASK);
+//     if (x > 0 && (x & FIXEDPT_FMASK) != 0)
+//         integer += FIXEDPT_ONE;
+//     return integer;
+// }
 
-fixedptud fixedpt_fracpart(fixedpt x) {
-    return (fixedptud)(x & FIXEDPT_FMASK);
-}
+// fixedptud fixedpt_fracpart(fixedpt x) {
+//     return (fixedptud)(x & FIXEDPT_FMASK);
+// }
 
-fixedpt fixedpt_rconst(double x) {
-    return fixedpt_fromint((int32_t)x) + (fixedpt)((x - (int32_t)x) * (double)FIXEDPT_ONE);
-}
+// fixedpt fixedpt_rconst(double x) {
+//     return fixedpt_fromint((int32_t)x) + (fixedpt)((x - (int32_t)x) * (double)FIXEDPT_ONE);
+// }
 
-fixedpt fixedpt_mul(fixedpt A, fixedpt B) {
-    int64_t product = (int64_t)A * (int64_t)B;
-    return (fixedpt)(product >> FIXEDPT_FBITS);
-}
+// fixedpt fixedpt_mul(fixedpt A, fixedpt B) {
+//     int64_t product = (int64_t)A * (int64_t)B;
+//     return (fixedpt)(product >> FIXEDPT_FBITS);
+// }
 
-fixedpt fixedpt_div(fixedpt A, fixedpt B) {
-    if (B == 0)
-        return (A >= 0) ? INT32_MAX : INT32_MIN;
-    int64_t numerator = ((int64_t)A << FIXEDPT_FBITS);
-    return (fixedpt)(numerator / B);
-}
+// fixedpt fixedpt_div(fixedpt A, fixedpt B) {
+//     if (B == 0)
+//         return (A >= 0) ? INT32_MAX : INT32_MIN;
+//     int64_t numerator = ((int64_t)A << FIXEDPT_FBITS);
+//     return (fixedpt)(numerator / B);
+// }
 
 /**
  * Convert the given fixedpt number to a decimal string.
