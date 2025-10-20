@@ -10,6 +10,9 @@
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
 extern void naive_uload(PCB *pcb, const char *filename);
+
+static const char menu_prog_path[] = "/bin/menu";
+
 //开关strace功能在这里，要关闭就注释掉
 //#define CONFIG_STRACE 1
 
@@ -136,12 +139,20 @@ void do_syscall(Context *c) {
       break;
     }
 
-    case SYS_exit:
+    case SYS_exit: {
 #ifdef CONFIG_STRACE
-      STRACE_PRINT(" = ? <halt>\n");
+      STRACE_PRINT(" -> exec(\"%s\")", menu_prog_path);
 #endif
-      halt((int)arg0);
-      break;
+      id   = SYS_execve;
+      arg0 = (uintptr_t)menu_prog_path;
+      arg1 = 0;
+      arg2 = 0;
+      c->GPR1 = id;
+      c->GPR2 = arg0;
+      c->GPR3 = arg1;
+      c->GPR4 = arg2;
+      goto handle_execve;
+    }
 
     case SYS_gettimeofday: {
       AM_TIMER_UPTIME_T uptime = io_read(AM_TIMER_UPTIME);
@@ -155,6 +166,7 @@ void do_syscall(Context *c) {
     }
 
     case SYS_execve:
+handle_execve:
       naive_uload(current, (const char *)arg0);
       c->GPRx = -1;
       break;
