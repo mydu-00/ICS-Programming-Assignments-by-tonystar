@@ -6,9 +6,10 @@
 #include <stdarg.h>
 #include <fs.h>
 #include <klib-macros.h>
+#include <proc.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
-
+extern void naive_uload(PCB *pcb, const char *filename);
 //开关strace功能在这里，要关闭就注释掉
 //#define CONFIG_STRACE 1
 
@@ -47,6 +48,7 @@ extern int mm_brk(uintptr_t brk);  // 新增声明
       case SYS_close: return "close";
       case SYS_lseek: return "lseek";
       case SYS_gettimeofday: return "gettimeofday";
+      case SYS_execve: return "execve";
       default:        return "unknown";
     }
   }
@@ -91,6 +93,8 @@ void do_syscall(Context *c) {
     else STRACE_PRINT("[strace] %s(%d,%u,%d)", name, (int)arg0, (unsigned)arg1, (int)arg2);
   } else if (id == SYS_gettimeofday) {
     STRACE_PRINT("[strace] %s(%p,%p)", name, (void *)arg0, (void *)arg1);
+  } else if (id == SYS_execve) {
+    STRACE_PRINT("[strace] %s(%p,%p,%p)", name, (void *)arg0, (void *)arg1, (void *)arg2);
   } else {
     STRACE_PRINT("[strace] %s(%u,%u,%u)", name,
                  (unsigned)arg0, (unsigned)arg1, (unsigned)arg2);
@@ -149,6 +153,11 @@ void do_syscall(Context *c) {
       c->GPRx = 0;
       break;
     }
+
+    case SYS_execve:
+      naive_uload(current, (const char *)arg0);
+      c->GPRx = -1;
+      break;
 
     default:
 #ifdef CONFIG_STRACE

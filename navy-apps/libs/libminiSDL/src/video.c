@@ -55,34 +55,58 @@ void SDL_FillRect(SDL_Surface *dst, SDL_Rect *dstrect, uint32_t color) {
 
 void SDL_UpdateRect(SDL_Surface *s, int x, int y, int w, int h) {
   if (!(s->flags & SDL_HWSURFACE)) return;
-  if (s->format->BitsPerPixel != 32) {
-    fprintf(stderr, "[miniSDL] SDL_UpdateRect() only handles 32bpp surfaces\n");
-    return;
-  }
   if (w == 0 || h == 0) {
     x = 0; y = 0; w = s->w; h = s->h;
   }
-
   assert(x >= 0 && y >= 0 && x + w <= s->w && y + h <= s->h);
 
-  size_t pitch_bytes = (size_t)s->pitch;
-  if (pitch_bytes == (size_t)s->w * 4 && x == 0 && w == s->w) {
-    uint32_t *data = (uint32_t *)((uint8_t *)s->pixels + y * pitch_bytes);
-    NDL_DrawRect(data, 0, y, w, h);
+  const int pitch_bytes = s->pitch;
+  if (s->format->BitsPerPixel == 32) {
+    if (pitch_bytes == s->w * 4 && x == 0 && w == s->w) {
+      uint32_t *data = (uint32_t *)((uint8_t *)s->pixels + y * pitch_bytes);
+      NDL_DrawRect(data, 0, y, w, h);
+      return;
+    }
+    uint32_t *tmp = malloc((size_t)w * h * sizeof(uint32_t));
+    if (!tmp) {
+      fprintf(stderr, "[miniSDL] SDL_UpdateRect(): OOM\n");
+      return;
+    }
+    for (int row = 0; row < h; row++) {
+      uint32_t *src_row = (uint32_t *)((uint8_t *)s->pixels + (y + row) * pitch_bytes + x * 4);
+      memcpy(tmp + row * w, src_row, (size_t)w * sizeof(uint32_t));
+    }
+    NDL_DrawRect(tmp, x, y, w, h);
+    free(tmp);
     return;
   }
 
-  uint32_t *tmp = malloc((size_t)w * h * sizeof(uint32_t));
-  if (!tmp) {
-    fprintf(stderr, "[miniSDL] SDL_UpdateRect() out of memory\n");
+  if (s->format->BitsPerPixel == 8) {
+    SDL_Palette *pal = s->format->palette;
+    if (!pal || !pal->colors) {
+      fprintf(stderr, "[miniSDL] SDL_UpdateRect(): palette missing\n");
+      return;
+    }
+    uint32_t *tmp = malloc((size_t)w * h * sizeof(uint32_t));
+    if (!tmp) {
+      fprintf(stderr, "[miniSDL] SDL_UpdateRect(): OOM\n");
+      return;
+    }
+    for (int row = 0; row < h; row++) {
+      uint8_t *src_row = (uint8_t *)s->pixels + (y + row) * pitch_bytes + x;
+      uint32_t *dst_row = tmp + row * w;
+      for (int col = 0; col < w; col++) {
+        uint8_t idx = src_row[col];
+        SDL_Color c = pal->colors[idx];
+        dst_row[col] = (0xffu << 24) | (c.r << 16) | (c.g << 8) | c.b;
+      }
+    }
+    NDL_DrawRect(tmp, x, y, w, h);
+    free(tmp);
     return;
   }
-  for (int row = 0; row < h; row++) {
-    uint32_t *src_row = (uint32_t *)((uint8_t *)s->pixels + (y + row) * pitch_bytes + x * 4);
-    memcpy(tmp + row * w, src_row, (size_t)w * sizeof(uint32_t));
-  }
-  NDL_DrawRect(tmp, x, y, w, h);
-  free(tmp);
+
+  fprintf(stderr, "[miniSDL] SDL_UpdateRect(): unsupported bpp=%d\n", s->format->BitsPerPixel);
 }
 
 // APIs below are already implemented.
@@ -194,21 +218,11 @@ void SDL_SoftStretch(SDL_Surface *src, SDL_Rect *srcrect, SDL_Surface *dst, SDL_
 }
 
 void SDL_SetPalette(SDL_Surface *s, int flags, SDL_Color *colors, int firstcolor, int ncolors) {
-  assert(s);
-  assert(s->format);
-  assert(s->format->palette);
+  assert(s && s->format && s->format->palette);
   assert(firstcolor == 0);
-
-  s->format->palette->ncolors = ncolors;
-  memcpy(s->format->palette->colors, colors, sizeof(SDL_Color) * ncolors);
-
-  if(s->flags & SDL_HWSURFACE) {
-    assert(ncolors == 256);
-    for (int i = 0; i < ncolors; i ++) {
-      uint8_t r = colors[i].r;
-      uint8_t g = colors[i].g;
-      uint8_t b = colors[i].b;
-    }
+  memcpy(s->format->palette->colors + firstcolor, colors, sizeof(SDL_Color) * ncolors);
+  s->format->palette->ncolors = ncolors + firstcolor;
+  if (s->flags & SDL_HWSURFACE) {
     SDL_UpdateRect(s, 0, 0, 0, 0);
   }
 }
