@@ -11,7 +11,7 @@
 extern int mm_brk(uintptr_t brk);  // 新增声明
 extern void naive_uload(PCB *pcb, const char *filename);
 
-static const char menu_prog_path[] = "/bin/menu";
+static const char menu_prog_path[] = "/bin/nterm";
 
 //开关strace功能在这里，要关闭就注释掉
 //#define CONFIG_STRACE 1

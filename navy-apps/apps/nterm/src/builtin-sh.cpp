@@ -23,9 +23,39 @@ static void sh_prompt() {
 }
 
 static void sh_handle_cmd(const char *cmd) {
+  if (cmd == NULL) return;
+
+  char buf[256];
+  strncpy(buf, cmd, sizeof(buf) - 1);
+  buf[sizeof(buf) - 1] = '\0';
+
+  char *start = buf;
+  while (*start == ' ' || *start == '\t') start++;
+  if (*start == '\0') return;
+
+  char *end = start + strlen(start);
+  while (end > start && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ' || end[-1] == '\t')) {
+    *--end = '\0';
+  }
+  if (*start == '\0') return;
+
+  for (char *p = start; *p; p++) {
+    if (*p == ' ' || *p == '\t') {
+      *p = '\0';
+      break;
+    }
+  }
+
+  char *argv[] = { start, NULL };
+  execvp(argv[0], argv);
+  sh_printf("Command not found: %s\n", start);
 }
 
 void builtin_sh_run() {
+  if (setenv("PATH", "/bin", 0) != 0) {
+    sh_printf("Failed to set PATH\n");
+  }
+
   sh_banner();
   sh_prompt();
 
