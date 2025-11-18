@@ -51,8 +51,16 @@ Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   Context *ctx = (Context *)(top - sizeof(Context));
   assert((uintptr_t)ctx >= (uintptr_t)kstack.start);
   memset(ctx, 0, sizeof(Context));
+
+  // 初始为 M-mode, MPP = 11
   ctx->mstatus = (uintptr_t)(3UL << 11);
+
+  // 入口地址
   ctx->mepc = (uintptr_t)entry;
+
+  // 按 RISC-V ABI 传参: a0(x10) = arg
+  ctx->GPR2 = (uintptr_t)arg;
+
   return ctx;
 }
 
