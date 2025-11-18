@@ -1,6 +1,7 @@
 #include <common.h>
 
 extern void do_syscall(Context *c);
+extern Context* schedule(Context *prev);  // 添加声明
 
 static Context* do_event(Event e, Context* c) {
   switch (e.event) {
@@ -11,6 +12,10 @@ static Context* do_event(Event e, Context* c) {
     case EVENT_SYSCALL:
       /* dispatch to syscall handler which updates context return value */
       do_syscall(c);
+      break;
+
+    case EVENT_IRQ_TIMER:
+      // native 下可能出现时钟中断，这里先不处理，直接返回
       break;
 
     default:
