@@ -93,9 +93,9 @@ void init_proc() {
   switch_boot_pcb();
   Log("Initializing processes...");
 
-  context_kload(&pcb[0], hello_fun, (void *)1);
+  //context_kload(&pcb[0], hello_fun, (void *)1);
 
-  char *const pal_argv[] = { "pal", "--skip", NULL };
+  char *const pal_argv[] = { "--skip" };
   char *const pal_envp[] = { NULL };
   context_uload(&pcb[1], "/bin/pal", pal_argv, pal_envp);
   // 首次 yield 由调度器切换
