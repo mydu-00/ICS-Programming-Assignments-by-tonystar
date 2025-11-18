@@ -93,7 +93,7 @@ void init_proc() {
   switch_boot_pcb();
   Log("Initializing processes...");
 
-  //context_kload(&pcb[0], hello_fun, (void *)1);
+  context_kload(&pcb[0], hello_fun, (void *)1);
 
   char *const pal_argv[] = { "--skip" };
   char *const pal_envp[] = { NULL };
