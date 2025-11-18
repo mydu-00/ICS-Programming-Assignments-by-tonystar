@@ -43,14 +43,12 @@ extern void *new_page(size_t nr_page);
 #define MAX_ENV 256
 #endif
 
-// 先声明/定义 count_vec，再在 context_uload 中使用
-static size_t count_vec(char *const vec[], size_t max_n) {
+// 裁剪计数，最多扫描 max_n 项（避免异常环境无限扫描）
+static size_t count_vec_capped(char *const vec[], size_t max_n) {
   if (!vec) return 0;
-  for (size_t n = 0; n < max_n; n++) {
-    if (vec[n] == NULL) return n;
-  }
-  panic("vector longer than %zu entries", max_n);
-  return 0;
+  size_t n = 0;
+  while (n < max_n && vec[n] != NULL) n++;
+  return n;  // 达到上限则裁剪
 }
 
 // 加载用户程序并创建用户上下文；在“新分配”的用户栈上布置 argc/argv/envp，并把 argc 的地址放入 GPRx
@@ -59,52 +57,49 @@ Context *context_uload(PCB *p, const char *filename,
   if (!loader) {
     panic("loader() not found; please provide loader to get user entry of %s", filename);
   }
-  uintptr_t entry = loader(p, filename);
 
-  Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
-  p->cp = ucontext(NULL, kstack, (void *)entry);
+  // A) 先准备“新用户栈”的内容（在覆盖旧镜像之前）
+  size_t argc = count_vec_capped(argv, MAX_ARG);
+  size_t envc = count_vec_capped(envp, MAX_ENV);
 
-  // 计数（限定最大长度，避免用户传入异常指针导致越界遍历）
-  size_t argc = count_vec(argv, MAX_ARG);
-  size_t envc = count_vec(envp, MAX_ENV);
-
-  // 分配新用户栈 32KB
-  char *ustack_base = (char *)new_page(8);
+  char *ustack_base = (char *)new_page(8);         // 32KB 用户栈
   char *sp = ustack_base + 8 * 4096;
 
-  // 拷贝字符串
   char *argv_ptrs[MAX_ARG];
   char *envp_ptrs[MAX_ENV];
 
   for (size_t i = 0; i < argc; i++) {
     size_t len = strlen(argv[i]) + 1;
-    sp -= len;
-    memcpy(sp, argv[i], len);
+    sp -= len; memcpy(sp, argv[i], len);
     argv_ptrs[i] = sp;
   }
   for (size_t i = 0; i < envc; i++) {
     size_t len = strlen(envp[i]) + 1;
-    sp -= len;
-    memcpy(sp, envp[i], len);
+    sp -= len; memcpy(sp, envp[i], len);
     envp_ptrs[i] = sp;
   }
 
-  // 指针对齐
   sp = (char *)((uintptr_t)sp & ~(sizeof(uintptr_t) - 1));
 
-  // 构造指针区 [argc][argv...][NULL][envp...][NULL]
   size_t nwords = 1 + argc + 1 + envc + 1;
   sp -= nwords * sizeof(uintptr_t);
-  uintptr_t *args = (uintptr_t *)sp;
+  uintptr_t *args_ptr = (uintptr_t *)sp;
 
-  args[0] = (uintptr_t)argc;
+  args_ptr[0] = (uintptr_t)argc;
   uintptr_t idx = 1;
-  for (size_t i = 0; i < argc; i++) args[idx++] = (uintptr_t)argv_ptrs[i];
-  args[idx++] = 0;
-  for (size_t i = 0; i < envc; i++) args[idx++] = (uintptr_t)envp_ptrs[i];
-  args[idx++] = 0;
+  for (size_t i = 0; i < argc; i++) args_ptr[idx++] = (uintptr_t)argv_ptrs[i];
+  args_ptr[idx++] = 0;
+  for (size_t i = 0; i < envc; i++) args_ptr[idx++] = (uintptr_t)envp_ptrs[i];
+  args_ptr[idx++] = 0;
 
-  p->cp->GPRx = (uintptr_t)args;
+  // B) 再加载新镜像，创建用户上下文
+  uintptr_t entry = loader(p, filename);
+
+  Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
+  p->cp = ucontext(NULL, kstack, (void *)entry);
+
+  // C) 将 argc 的地址传给用户态 _start（a0/GPRx）
+  p->cp->GPRx = (uintptr_t)args_ptr;
   return p->cp;
 }
 
