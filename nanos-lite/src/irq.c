@@ -7,6 +7,7 @@ static Context* do_event(Event e, Context* c) {
   switch (e.event) {
     case EVENT_YIELD:
       printf("run @ irq.c nanos_lite irq handler, love ya\n");
+      c = schedule(c);
       break;
 
     case EVENT_SYSCALL:
