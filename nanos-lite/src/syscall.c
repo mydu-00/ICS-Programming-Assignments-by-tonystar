@@ -16,7 +16,7 @@ extern void switch_boot_pcb(void);
 static const char menu_prog_path[] = "/bin/nterm";
 
 //开关strace功能在这里，要关闭就注释掉
-//#define CONFIG_STRACE 1
+#define CONFIG_STRACE 1
 
 #ifdef CONFIG_STRACE
   #include <stdbool.h>
