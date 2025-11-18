@@ -28,7 +28,7 @@
 # error "Unsupported ISA for loader ELF check"
 #endif
 
-static uintptr_t loader(PCB *pcb, const char *filename) {
+uintptr_t loader(PCB *pcb, const char *filename) {
   Elf_Ehdr ehdr;
 
   int fd = fs_open(filename, 0, 0);
