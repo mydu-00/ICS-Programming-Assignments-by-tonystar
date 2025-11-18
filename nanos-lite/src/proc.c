@@ -43,6 +43,16 @@ extern void *new_page(size_t nr_page);
 #define MAX_ENV 256
 #endif
 
+// 先声明/定义 count_vec，再在 context_uload 中使用
+static size_t count_vec(char *const vec[], size_t max_n) {
+  if (!vec) return 0;
+  for (size_t n = 0; n < max_n; n++) {
+    if (vec[n] == NULL) return n;
+  }
+  panic("vector longer than %zu entries", max_n);
+  return 0;
+}
+
 // 加载用户程序并创建用户上下文；在“新分配”的用户栈上布置 argc/argv/envp，并把 argc 的地址放入 GPRx
 Context *context_uload(PCB *p, const char *filename,
                        char *const argv[], char *const envp[]) {
@@ -54,16 +64,12 @@ Context *context_uload(PCB *p, const char *filename,
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(NULL, kstack, (void *)entry);
 
-  // 计数
-  size_t argc = 0, envc = 0;
-  if (argv) while (argv[argc]) argc++;
-  if (envp) while (envp[envc]) envc++;
+  // 计数（限定最大长度，避免用户传入异常指针导致越界遍历）
+  size_t argc = count_vec(argv, MAX_ARG);
+  size_t envc = count_vec(envp, MAX_ENV);
 
-  if (argc > MAX_ARG) panic("argc=%zu exceeds MAX_ARG=%d", argc, MAX_ARG);
-  if (envc > MAX_ENV) panic("envc=%zu exceeds MAX_ENV=%d", envc, MAX_ENV);
-
-  // 分配新用户栈
-  char *ustack_base = (char *)new_page(8);  // 32KB
+  // 分配新用户栈 32KB
+  char *ustack_base = (char *)new_page(8);
   char *sp = ustack_base + 8 * 4096;
 
   // 拷贝字符串
