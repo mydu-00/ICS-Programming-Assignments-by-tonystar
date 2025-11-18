@@ -69,6 +69,19 @@ void __am_switch(Context *c) {
 void map(AddrSpace *as, void *va, void *pa, int prot) {
 }
 
+// 创建用户上下文：仅设置 mepc，mstatus，pdir。用户栈由 Nanos-lite 放入 GPRx。
 Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
-  return NULL;
+  uintptr_t top = (uintptr_t)kstack.end;
+  Context *ctx = (Context *)(top - sizeof(Context));
+  assert((uintptr_t)ctx >= (uintptr_t)kstack.start);
+  memset(ctx, 0, sizeof(Context));
+
+  // M-mode, MPP = 11
+  ctx->mstatus = (uintptr_t)(3UL << 11);
+  ctx->mepc = (uintptr_t)entry;
+
+  // 记录地址空间指针（后续 __am_switch 会用到）
+  ctx->pdir = as ? as->ptr : NULL;
+
+  return ctx;
 }

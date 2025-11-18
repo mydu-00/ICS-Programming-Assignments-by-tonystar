@@ -4,9 +4,6 @@ _start:
 #if defined(__ISA_AM_NATIVE__)
 
   movq $0, %rbp
-  // (rsp + 8) should be multiple of 16 when
-  // control is transfered to the function entry point.
-  // See amd64 ABI manual for more details
   andq $0xfffffffffffffff0, %rsp
   movq %rax, %rdi
   call call_main
@@ -29,8 +26,10 @@ _start:
   jal call_main
 
 #elif defined(__riscv)
-  mv s0, zero
-  jal call_main
+  // Nanos-lite 将用户栈顶放在 a0(GPRx)，这里用它来设置 sp
+  mv   sp, a0
+  mv   s0, zero
+  jal  call_main
 
 #elif defined(__ISA_LOONGARCH32R__)
 

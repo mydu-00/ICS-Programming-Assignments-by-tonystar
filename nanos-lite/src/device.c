@@ -22,7 +22,8 @@ static int screen_h = 0;
 static char dispinfo_buf[64];
 static size_t dispinfo_len = 0;
 
-size_t serial_write(const void *buf, size_t offset, size_t len) {
+ssize_t serial_write(const void *buf, size_t offset, size_t len) {
+  yield();  // 模拟慢设备
   (void)offset;
   const char *p = buf;
   for (size_t i = 0; i < len; i++) {
@@ -40,6 +41,7 @@ size_t dispinfo_read(void *buf, size_t offset, size_t len) {
 }
 
 size_t events_read(void *buf, size_t offset, size_t len) {
+  yield();  // 模拟慢设备
   (void)offset;
   if (len == 0) return 0;
 
@@ -58,7 +60,8 @@ size_t events_read(void *buf, size_t offset, size_t len) {
   return out;
 }
 
-size_t fb_write(const void *buf, size_t offset, size_t len) {
+ssize_t fb_write(const void *buf, size_t offset, size_t len) {
+  yield();  // 模拟慢设备
   if (len == 0) return 0;
   assert(screen_w > 0 && screen_h > 0);
   assert((offset & 3) == 0);
