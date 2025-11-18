@@ -118,7 +118,7 @@ $(DST_DIR)/%.o: %.S
 
 # $(1): library name
 define LIB_TEMPLATE =
-$$(NAVY_HOME)/libs/$(1)/build/$(1)-$$(ISA).a: force
+$$(NAVY_HOME)/libs/$(1)/build/$(1)-$$(ISA).a:
 	@$$(MAKE) -s -C $$(NAVY_HOME)/libs/$(1) archive
 LINKAGE += $$(NAVY_HOME)/libs/$(1)/build/$(1)-$$(ISA).a
 endef
@@ -177,7 +177,7 @@ $(CLEAN_ALL):
 .PHONY: clean-all $(CLEAN_ALL)
 
 ### Build fsimg and ramdisk for Nanos-lite
-APPS = nterm
+APPS = nterm pal busybox
 TESTS = 
 
 fsimg: $(addprefix apps/, $(APPS)) $(addprefix tests/, $(TESTS))
