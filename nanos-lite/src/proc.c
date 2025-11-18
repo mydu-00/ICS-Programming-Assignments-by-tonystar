@@ -16,10 +16,12 @@ void switch_boot_pcb() {
 }
 
 void hello_fun(void *arg) {
-  int j = 1;
+  int j = 0;
   while (1) {
-    Log("Hello World from Nanos-lite with arg '%p' for the %dth time!", (uintptr_t)arg, j);
-    j ++;
+    j++;
+    if ((j & 0x3fff) == 0) {  // 每 16384 次循环打印一次
+      Log("Hello(arg=%p) count=%d", (uintptr_t)arg, j);
+    }
     yield();
   }
 }
@@ -99,11 +101,10 @@ void init_proc() {
 
   context_kload(&pcb[0], hello_fun, (void *)1);
 
-  // 修正参数：argv[0] 为程序名，且以 NULL 结尾
-  char *const pal_argv[] = { "pal", "--skip", NULL };
-  char *const pal_envp[] = { NULL };
-  context_uload(&pcb[1], "/bin/pal", pal_argv, pal_envp);
-  // 首次 yield 由调度器切换
+  // 运行 NTerm，方便在里面手动输入 Busybox 命令
+  char *const nterm_argv[] = { "nterm", NULL };
+  char *const nterm_envp[] = { NULL };
+  context_uload(&pcb[1], "/bin/nterm", nterm_argv, nterm_envp);
 }
 
 // 简单的双线程轮转调度
