@@ -9,7 +9,9 @@
 #include <proc.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
-extern void naive_uload(PCB *pcb, const char *filename);
+extern Context *context_uload(PCB *p, const char *filename,
+                              char *const argv[], char *const envp[]);
+extern void switch_boot_pcb(void);
 
 static const char menu_prog_path[] = "/bin/nterm";
 
@@ -167,8 +169,20 @@ void do_syscall(Context *c) {
 
     case SYS_execve:
 handle_execve:
-      naive_uload(current, (const char *)arg0);
-      c->GPRx = -1;
+      const char *filename = (const char *)arg0;
+      char *const *uargv   = (char *const *)arg1;
+      char *const *uenvp   = (char *const *)arg2;
+
+      // 在本项目（无 VME）下地址等同，可直接读用户内存；
+      // context_uload 会把字符串拷贝到“新分配的用户栈”中
+      context_uload(current, filename, uargv, uenvp);
+
+      // 结束当前进程 A 的执行流：切到 boot，再触发调度
+      switch_boot_pcb();
+      yield();
+
+      // 不会再返回到这里；填个占位返回值
+      c->GPRx = 0;
       break;
 
     default:
