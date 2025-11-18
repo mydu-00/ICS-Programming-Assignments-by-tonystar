@@ -9,6 +9,8 @@
 #include <proc.h>
 
 extern int mm_brk(uintptr_t brk);  // 新增声明
+extern int fs_open(const char *pathname, int flags, int mode);
+extern int fs_close(int fd);
 extern Context *context_uload(PCB *p, const char *filename,
                               char *const argv[], char *const envp[]);
 extern void switch_boot_pcb(void);
@@ -167,23 +169,32 @@ void do_syscall(Context *c) {
       break;
     }
 
-    case SYS_execve:
+    case SYS_execve: {
 handle_execve:
       const char *filename = (const char *)arg0;
       char *const *uargv   = (char *const *)arg1;
       char *const *uenvp   = (char *const *)arg2;
 
-      // 在本项目（无 VME）下地址等同，可直接读用户内存；
-      // context_uload 会把字符串拷贝到“新分配的用户栈”中
+      // 先检查文件是否存在
+      int fd = fs_open(filename, 0, 0);
+      if (fd < 0) {
+        // 按约定：返回 -2 表示文件不存在，供 execvp() 判定并继续尝试 PATH 下一个目录
+        c->GPRx = (uintptr_t)-2;
+        break;
+      }
+      fs_close(fd);
+
+      // 加载并用“新用户栈”放置参数，然后切换走当前执行流
       context_uload(current, filename, uargv, uenvp);
 
-      // 结束当前进程 A 的执行流：切到 boot，再触发调度
+      // 结束当前(A)执行流：切到 boot，再 yield 触发调度，后续将运行新镜像(B)
       switch_boot_pcb();
       yield();
 
-      // 不会再返回到这里；填个占位返回值
+      // 正常不会再返回；放个返回值占位
       c->GPRx = 0;
       break;
+    }
 
     default:
 #ifdef CONFIG_STRACE

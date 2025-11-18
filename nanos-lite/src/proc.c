@@ -114,9 +114,9 @@ void init_proc() {
 
   context_kload(&pcb[0], hello_fun, (void *)1);
 
-  // 运行 NTerm，方便在里面手动输入 Busybox 命令
+  // 给 nterm 提供 PATH
   char *const nterm_argv[] = { "nterm", NULL };
-  char *const nterm_envp[] = { NULL };
+  char *const nterm_envp[] = { "PATH=/bin:/usr/bin", NULL };
   context_uload(&pcb[1], "/bin/nterm", nterm_argv, nterm_envp);
 }
 
