@@ -1,5 +1,6 @@
 #include <proc.h>
 #include <am.h>  // for Area, kcontext, ucontext, heap
+#include <string.h>
 
 #define MAX_NR_PROC 4
 
@@ -30,36 +31,73 @@ static inline Context *context_kload(PCB *p, void (*entry)(void *), void *arg) {
   return p->cp;
 }
 
-// 加载用户程序并创建用户上下文；将用户栈顶放入 GPRx
-static inline Context *context_uload(PCB *p, const char *filename) {
+// 加载用户程序并创建用户上下文；将用户栈上放置 argc/argv/envp，并把 argc 的地址放入 GPRx
+static inline Context *context_uload(PCB *p, const char *filename,
+                                     char *const argv[], char *const envp[]) {
   if (!loader) {
     panic("loader() not found; please provide loader to get user entry of %s", filename);
   }
-  // 1) 通过 loader 装载 ELF，得到入口地址
   uintptr_t entry = loader(p, filename);
 
-  // 2) 用 PCB 的内核栈放置 Context
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
-  // 暂不启用分页，传 NULL；若已启用，传 p->as
   p->cp = ucontext(NULL, kstack, (void *)entry);
 
-  // 3) 约定把用户栈顶放到 GPRx，由用户态 _start 设置 sp
-  p->cp->GPRx = (uintptr_t)heap.end;
+  // 布置用户栈：字符串区 + 指针区
+  size_t argc = 0, envc = 0, i = 0;
+  if (argv) while (argv[argc]) argc++;
+  if (envp) while (envp[envc]) envc++;
+
+  // 先拷贝字符串
+  char *sp = (char *)heap.end;
+  char *argv_ptrs[64];
+  char *envp_ptrs[64];
+  assert(argc < 64 && envc < 64);
+
+  for (i = 0; i < argc; i++) {
+    size_t len = strlen(argv[i]) + 1;
+    sp -= len;
+    memcpy(sp, argv[i], len);
+    argv_ptrs[i] = sp;
+  }
+  for (i = 0; i < envc; i++) {
+    size_t len = strlen(envp[i]) + 1;
+    sp -= len;
+    memcpy(sp, envp[i], len);
+    envp_ptrs[i] = sp;
+  }
+
+  // 指针对齐
+  sp = (char *)((uintptr_t)sp & ~(sizeof(uintptr_t) - 1));
+
+  // 分配指针数组区
+  size_t nwords = 1 /*argc*/ + argc + 1 /*argv NULL*/ + envc + 1 /*envp NULL*/;
+  sp -= nwords * sizeof(uintptr_t);
+  uintptr_t *ustack = (uintptr_t *)sp;
+
+  // 填充 [argc][argv...][NULL][envp...][NULL]
+  ustack[0] = (uintptr_t)argc;
+  uintptr_t idx = 1;
+  for (i = 0; i < argc; i++) ustack[idx++] = (uintptr_t)argv_ptrs[i];
+  ustack[idx++] = 0;
+  for (i = 0; i < envc; i++) ustack[idx++] = (uintptr_t)envp_ptrs[i];
+  ustack[idx++] = 0;
+  assert(idx == nwords);
+
+  // 将 argc 的地址放到 GPRx；_start 会设置 sp=GPRx，并把该指针传给 call_main
+  p->cp->GPRx = (uintptr_t)ustack;
 
   return p->cp;
 }
 
 void init_proc() {
   switch_boot_pcb();
-
   Log("Initializing processes...");
 
-  // 保留一个内核线程
   context_kload(&pcb[0], hello_fun, (void *)1);
 
-  // 把另一个换成用户进程 /bin/pal
-  context_uload(&pcb[1], "/bin/pal");
-
+  char *const pal_argv[] = { "pal", "--skip", NULL };
+  char *const pal_envp[] = { NULL };
+  context_uload(&pcb[1], "/bin/pal", pal_argv, pal_envp);
   // 首次 yield 由调度器切换
 }
 
