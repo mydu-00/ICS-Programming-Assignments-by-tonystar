@@ -28,6 +28,8 @@ typedef struct {
   uint32_t inst;
 } MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
 
-#define isa_mmu_check(vaddr, len, type) (MMU_DIRECT)
+// 只声明，具体实现在 mmu.c 里
+int isa_mmu_check(vaddr_t vaddr, int len, int type);
+paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type);
 
 #endif

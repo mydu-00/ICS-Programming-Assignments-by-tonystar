@@ -7,6 +7,7 @@
 #define CSR_MCAUSE  0x342
 #define CSR_MSTATUS 0x300
 #define CSR_MTVEC   0x305
+#define CSR_SATP    0x180   // Sv32 satp
 
 extern word_t csr_mepc, csr_mcause, csr_mstatus, csr_mtvec;
 
