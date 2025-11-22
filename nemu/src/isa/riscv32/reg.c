@@ -16,7 +16,13 @@
 #include <isa.h>
 #include <cpu/cpu.h>
 #include "local-include/reg.h"
-#include <ctype.h>  // 加上这一行
+#include <ctype.h>
+
+word_t csr_mepc = 0;
+word_t csr_mcause = 0;
+word_t csr_mstatus = 0;
+word_t csr_mtvec = 0;
+word_t csr_satp = 0;   // 新增定义，匹配 csr.h 里的 extern
 
 const char *regs[] = {
   "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
