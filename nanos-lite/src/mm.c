@@ -39,17 +39,14 @@ int mm_brk(uintptr_t brk) {
     p->max_brk = (uintptr_t)&_end;
   }
 
-  if (brk == 0 || brk <= p->max_brk) {
-    // 查询或收缩：我们不做回收，直接成功
-    return 0;
-  }
+  if (brk == 0 || brk <= p->max_brk) return 0;
 
   uintptr_t old = p->max_brk;
   uintptr_t new = brk;
 
-  // 为 [old, new) 之间的地址按页分配物理页并映射
-  uintptr_t addr = ROUNDDOWN(old, PGSIZE);
-  for (; addr < new; addr += PGSIZE) {
+  uintptr_t start = ROUNDUP(old, PGSIZE);
+  uintptr_t end   = ROUNDUP(new, PGSIZE);
+  for (uintptr_t addr = start; addr < end; addr += PGSIZE) {
     void *pa = new_page(1);
     memset(pa, 0, PGSIZE);
     map(&p->as, (void *)addr, pa, 0);
