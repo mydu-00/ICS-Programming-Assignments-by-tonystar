@@ -2,9 +2,16 @@
 #include <arch/riscv.h>
 #include <klib.h>
 
+// 这两行是关键：声明 VME 提供的接口
+extern void __am_get_cur_as(Context *c);
+extern void __am_switch(Context *c);
+
 static Context* (*user_handler)(Event, Context*) = NULL;
 
 Context* __am_irq_handle(Context *c) {
+  // 1) 记录当前地址空间指针到 Context（从 satp 读）
+  __am_get_cur_as(c);
+
   if (user_handler) {
     Event ev = {0};
     switch (c->mcause) {
@@ -31,6 +38,9 @@ Context* __am_irq_handle(Context *c) {
     c = user_handler(ev, c);
     assert(c != NULL);
   }
+
+  // 2) 切换到被调度进程的地址空间（写 satp）
+  __am_switch(c);
   return c;
 }
 
