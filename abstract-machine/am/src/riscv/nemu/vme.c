@@ -22,7 +22,8 @@ static inline void set_satp(void *pdir) {
 static inline uintptr_t get_satp() {
   uintptr_t satp;
   asm volatile("csrr %0, satp" : "=r"(satp));
-  return satp << 12;
+  uintptr_t mask = (1ul << (__riscv_xlen - 1)) - 1;
+  return (satp & mask) << 12;   // 仅低位 PPN 左移 12
 }
 
 bool vme_init(void* (*pgalloc_f)(int), void (*pgfree_f)(void*)) {
