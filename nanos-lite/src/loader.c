@@ -2,9 +2,10 @@
 #include <elf.h>
 #include <common.h>
 #include <fs.h>
-//#include <nemu.h>
 
 #ifdef HAS_VME
+#include <arch/riscv.h>
+#ifndef PTE_V
 typedef uintptr_t PTE;
 #define PTE_V 0x001
 #define PTE_R 0x002
@@ -16,7 +17,6 @@ typedef uintptr_t PTE;
 #define PTE_D 0x080
 #endif
 
-#ifdef HAS_VME
 static inline void *va2pa(AddrSpace *as, uintptr_t va) {
   PTE *root = (PTE *)as->ptr;
   uint32_t vpn1 = (va >> 22) & 0x3ff;
@@ -31,6 +31,20 @@ static inline void *va2pa(AddrSpace *as, uintptr_t va) {
 
   uintptr_t pa = ((uintptr_t)(pte0 >> 10) << 12) | (va & 0xfff);
   return (void *)pa;
+}
+
+static void user_mem_write(AddrSpace *as, uintptr_t va, const void *src, size_t len) {
+  const uint8_t *s = (const uint8_t *)src;
+  size_t off = 0;
+  while (off < len) {
+    uintptr_t cur = va + off;
+    size_t chunk = len - off;
+    size_t remain = (size_t)PGSIZE - (cur & (PGSIZE - 1));
+    if (chunk > remain) chunk = remain;
+    uint8_t *dst = (uint8_t *)va2pa(as, cur);
+    memcpy(dst, s + off, chunk);
+    off += chunk;
+  }
 }
 #endif
 
@@ -100,34 +114,48 @@ uintptr_t loader(PCB *pcb, const char *filename) {
       uintptr_t va_page  = ROUNDDOWN(va_start, PGSIZE);
 
 #ifdef HAS_VME
-      // 为段涉及的每一页分配物理页并映射
+      AddrSpace *as = &pcb->as;
+
       for (uintptr_t va = va_page; va < va_end; va += PGSIZE) {
         void *pa = new_page(1);
         memset(pa, 0, PGSIZE);
-        map(as, (void *)va, pa, 0);  // AM native 里忽略 prot，默认 R/W/X
+        map(as, (void *)va, pa, 0);
       }
 
       fs_lseek(fd, ph.p_offset, SEEK_SET);
       size_t copied = 0;
       while (copied < ph.p_filesz) {
-        uintptr_t va = va_start + copied;
-        size_t page_off = va & (PGSIZE - 1);
-        size_t remain = ph.p_filesz - copied;
-        size_t chunk = (PGSIZE - page_off < remain) ? (PGSIZE - page_off) : remain;
-
-        void *pa = va2pa(as, va);
-        size_t nread = fs_read(fd, pa, chunk);
+        uintptr_t cur_va = va_start + copied;
+        size_t chunk = ph.p_filesz - copied;
+        size_t remain = (size_t)PGSIZE - (cur_va & (PGSIZE - 1));
+        if (chunk > remain) chunk = remain;
+        uint8_t buf[PGSIZE];
+        size_t nread = fs_read(fd, buf, chunk);
         assert(nread == chunk);
-
+        user_mem_write(as, cur_va, buf, chunk);
         copied += chunk;
       }
+
+      if (ph.p_memsz > ph.p_filesz) {
+        uintptr_t bss_start = va_start + ph.p_filesz;
+        size_t bss_len = ph.p_memsz - ph.p_filesz;
+        uint8_t zero_buf[PGSIZE] = {0};
+        while (bss_len > 0) {
+          size_t chunk = bss_len;
+          size_t remain = (size_t)PGSIZE - (bss_start & (PGSIZE - 1));
+          if (chunk > remain) chunk = remain;
+          user_mem_write(as, bss_start, zero_buf, chunk);
+          bss_start += chunk;
+          bss_len -= chunk;
+        }
+      }
 #else
-      // 未开启 VME：老办法，直接写 vaddr
+      // 原来的非 VME 路径保持不变
       void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;
       if (ph.p_filesz > 0) {
         fs_lseek(fd, ph.p_offset, SEEK_SET);
-        n = fs_read(fd, seg_dst, (size_t)ph.p_filesz);
-        assert(n == (size_t)ph.p_filesz);
+        size_t n2 = fs_read(fd, seg_dst, (size_t)ph.p_filesz);
+        assert(n2 == (size_t)ph.p_filesz);
       }
       if (ph.p_memsz > ph.p_filesz) {
         memset((char *)seg_dst + ph.p_filesz, 0, (size_t)(ph.p_memsz - ph.p_filesz));
