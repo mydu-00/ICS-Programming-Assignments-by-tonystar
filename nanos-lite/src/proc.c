@@ -118,6 +118,10 @@ Context *context_uload(PCB *p, const char *filename,
 #ifdef HAS_VME
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(&p->as, kstack, (void *)entry);
+
+  // 关键：把该进程的 satp 写入 CSR，确保首次运行用的是它的页表
+  extern void __am_switch(Context *c);   // 在文件顶部声明一次
+  __am_switch(p->cp);
 #else
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(NULL, kstack, (void *)entry);
