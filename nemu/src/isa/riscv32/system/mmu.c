@@ -42,10 +42,9 @@
 
 // 根据 satp.MODE 判断是否开启分页
 int isa_mmu_check(vaddr_t vaddr, int len, int type) {
-  (void)vaddr; (void)len; (void)type;
-  // RISC-V CSR satp，NEMU 的 CSR 通常在 cpu.csr 里，你的项目里若不同，按实际字段改
-  word_t satp = csr_read(CSR_SATP);   // 如果没有 csr_read，就用 cpu.csr[CSR_SATP]
-  uint32_t mode = satp >> 31;         // Sv32: MODE 在最高位
+  word_t satp = csr_read(CSR_SATP);
+  assert(satp != 0);                     // satp 还是 0 就说明根本没写进去
+  uint32_t mode = satp >> 31;
   return mode ? MMU_TRANSLATE : MMU_DIRECT;
 }
 
@@ -82,9 +81,6 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
 
   paddr_t ppn = pte0 >> 10;
   paddr_t pa  = (ppn << 12) | off;
-
-  // 本实验中，Nanos-lite/AM 构造的是恒等映射，检查有无偏差
-  assert(pa == vaddr);
 
   return pa;
 }
