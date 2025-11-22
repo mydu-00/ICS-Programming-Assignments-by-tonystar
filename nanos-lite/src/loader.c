@@ -2,8 +2,18 @@
 #include <elf.h>
 #include <common.h>
 #include <fs.h>
-#include <nemu.h>
+//#include <nemu.h>
+
 #ifdef HAS_VME
+typedef uintptr_t PTE;
+#define PTE_V 0x001
+#define PTE_R 0x002
+#define PTE_W 0x004
+#define PTE_X 0x008
+#define PTE_U 0x010
+#define PTE_G 0x020
+#define PTE_A 0x040
+#define PTE_D 0x080
 #endif
 
 #ifdef HAS_VME
