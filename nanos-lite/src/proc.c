@@ -1,6 +1,43 @@
 #include <proc.h>
 #include <am.h>  // for Area, kcontext, ucontext, heap
 #include <string.h>
+#ifdef HAS_VME
+#include <arch/riscv.h>   // 如果没有定义 PTE，则手动补上
+#ifndef PTE_V
+typedef uintptr_t PTE;
+#define PTE_V 0x001
+#endif
+
+static inline void *va2pa(AddrSpace *as, uintptr_t va) {
+  PTE *root = (PTE *)as->ptr;
+  uint32_t vpn1 = (va >> 22) & 0x3ff;
+  uint32_t vpn0 = (va >> 12) & 0x3ff;
+
+  PTE pte1 = root[vpn1];
+  assert(pte1 & PTE_V);
+  PTE *pt = (PTE *)(((uintptr_t)pte1 >> 10) << 12);
+
+  PTE pte0 = pt[vpn0];
+  assert(pte0 & PTE_V);
+
+  uintptr_t pa = ((uintptr_t)(pte0 >> 10) << 12) | (va & 0xfff);
+  return (void *)pa;
+}
+
+static void user_mem_write(AddrSpace *as, uintptr_t va, const void *src, size_t len) {
+  const uint8_t *s = (const uint8_t *)src;
+  size_t off = 0;
+  while (off < len) {
+    uintptr_t cur = va + off;
+    size_t chunk = len - off;
+    size_t remain = (size_t)PGSIZE - (cur & (PGSIZE - 1));
+    if (chunk > remain) chunk = remain;
+    uint8_t *dst = (uint8_t *)va2pa(as, cur);
+    memcpy(dst, s + off, chunk);
+    off += chunk;
+  }
+}
+#endif
 
 extern void *new_page(size_t nr_page);
 extern void  map(AddrSpace *as, void *va, void *pa, int prot);
@@ -20,8 +57,7 @@ PCB *current = NULL;
 
 /* 声明装载器，返回 ELF 入口 */
 extern uintptr_t loader(PCB *pcb, const char *filename) __attribute__((weak));
-
-void switch_boot_pcb() {
+void switch_boot_pcb(void) {
   current = &pcb_boot;
 }
 
@@ -66,7 +102,6 @@ Context *context_uload(PCB *p, const char *filename,
   uintptr_t entry = loader(p, filename);
   AddrSpace *as = &p->as;
 
-  // 为用户栈映射 32KB 到虚拟地址空间末尾 [as->area.end - 32KB, as->area.end)
   uintptr_t ustack_end   = (uintptr_t)as->area.end;
   uintptr_t ustack_start = ustack_end - 8 * PGSIZE;
   for (uintptr_t va = ustack_start; va < ustack_end; va += PGSIZE) {
@@ -74,7 +109,7 @@ Context *context_uload(PCB *p, const char *filename,
     memset(pa, 0, PGSIZE);
     map(as, (void *)va, pa, 0);
   }
-  char *sp = (char *)ustack_end;   // 栈顶从虚拟地址末尾开始
+  uintptr_t usp = ustack_end;
 #else
   // 未开启 VME：直接用物理内存当栈
   char *ustack_base = (char *)new_page(8);         // 32KB
@@ -85,6 +120,35 @@ Context *context_uload(PCB *p, const char *filename,
   char *argv_ptrs[MAX_ARG];
   char *envp_ptrs[MAX_ENV];
 
+#ifdef HAS_VME
+  for (size_t i = 0; i < argc; i++) {
+    size_t len = strlen(argv[i]) + 1;
+    usp -= len;
+    user_mem_write(as, usp, argv[i], len);
+    argv_ptrs[i] = (char *)usp;
+  }
+  for (size_t i = 0; i < envc; i++) {
+    size_t len = strlen(envp[i]) + 1;
+    usp -= len;
+    user_mem_write(as, usp, envp[i], len);
+    envp_ptrs[i] = (char *)usp;
+  }
+
+  usp &= ~(sizeof(uintptr_t) - 1);
+
+  size_t nwords = 1 + argc + 1 + envc + 1;
+  usp -= nwords * sizeof(uintptr_t);
+  uintptr_t args_va = usp;
+  uintptr_t args_buf[1 + MAX_ARG + 1 + MAX_ENV + 1];
+  size_t idx = 0;
+
+  args_buf[idx++] = argc;
+  for (size_t i = 0; i < argc; i++) args_buf[idx++] = (uintptr_t)argv_ptrs[i];
+  args_buf[idx++] = 0;
+  for (size_t i = 0; i < envc; i++) args_buf[idx++] = (uintptr_t)envp_ptrs[i];
+  args_buf[idx++] = 0;
+  user_mem_write(as, usp, args_buf, nwords * sizeof(uintptr_t));
+#else
   // 在栈上从高地址向低地址拷贝字符串
   for (size_t i = 0; i < argc; i++) {
     size_t len = strlen(argv[i]) + 1;
@@ -113,20 +177,18 @@ Context *context_uload(PCB *p, const char *filename,
   args_ptr[idx++] = 0;
   for (size_t i = 0; i < envc; i++) args_ptr[idx++] = (uintptr_t)envp_ptrs[i];
   args_ptr[idx++] = 0;
+#endif
 
   // 创建用户 Context，并把 argc 的地址放到 GPRx(a0)
 #ifdef HAS_VME
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(&p->as, kstack, (void *)entry);
-
-  // 关键：把该进程的 satp 写入 CSR，确保首次运行用的是它的页表
-  extern void __am_switch(Context *c);   // 在文件顶部声明一次
-  __am_switch(p->cp);
+  p->cp->GPRx = args_va;
 #else
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(NULL, kstack, (void *)entry);
-#endif
   p->cp->GPRx = (uintptr_t)args_ptr;
+#endif
   return p->cp;
 }
 
