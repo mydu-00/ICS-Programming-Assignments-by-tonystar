@@ -2,6 +2,27 @@
 #include <elf.h>
 #include <common.h>
 #include <fs.h>
+#include <nemu.h>
+#ifdef HAS_VME
+#endif
+
+#ifdef HAS_VME
+static inline void *va2pa(AddrSpace *as, uintptr_t va) {
+  PTE *root = (PTE *)as->ptr;
+  uint32_t vpn1 = (va >> 22) & 0x3ff;
+  uint32_t vpn0 = (va >> 12) & 0x3ff;
+
+  PTE pte1 = root[vpn1];
+  assert(pte1 & PTE_V);
+  PTE *pt = (PTE *)(((uintptr_t)pte1 >> 10) << 12);
+
+  PTE pte0 = pt[vpn0];
+  assert(pte0 & PTE_V);
+
+  uintptr_t pa = ((uintptr_t)(pte0 >> 10) << 12) | (va & 0xfff);
+  return (void *)pa;
+}
+#endif
 
 #ifdef __LP64__
 # define Elf_Ehdr Elf64_Ehdr
@@ -73,27 +94,23 @@ uintptr_t loader(PCB *pcb, const char *filename) {
       for (uintptr_t va = va_page; va < va_end; va += PGSIZE) {
         void *pa = new_page(1);
         memset(pa, 0, PGSIZE);
-        map(as, (void *)va, pa, /*prot*/ 0);  // AM native 里忽略 prot，默认 R/W/X
+        map(as, (void *)va, pa, 0);  // AM native 里忽略 prot，默认 R/W/X
       }
 
-      // 把文件数据读入到对应物理页里
-      // 简化：一次性按文件大小读到一个临时缓冲，再拷贝到各页
-      void *buf = malloc(ph.p_filesz);
-      assert(buf);
       fs_lseek(fd, ph.p_offset, SEEK_SET);
-      n = fs_read(fd, buf, (size_t)ph.p_filesz);
-      assert(n == (size_t)ph.p_filesz);
+      size_t copied = 0;
+      while (copied < ph.p_filesz) {
+        uintptr_t va = va_start + copied;
+        size_t page_off = va & (PGSIZE - 1);
+        size_t remain = ph.p_filesz - copied;
+        size_t chunk = (PGSIZE - page_off < remain) ? (PGSIZE - page_off) : remain;
 
-      // 遍历每个字节，写到对应的 (va → pa) 中
-      for (size_t off = 0; off < ph.p_filesz; off++) {
-        uintptr_t va = va_start + off;
-        // 由于内核地址空间是恒等映射，map 时我们将 va→pa，va 同时也可当作 pa 使用：
-        // 这里等价于直接写 *(uint8_t*)va = ((uint8_t*)buf)[off]，在 Sv32+恒等映射成立
-        ((uint8_t *)va)[0] = ((uint8_t *)buf)[off];
+        void *pa = va2pa(as, va);
+        size_t nread = fs_read(fd, pa, chunk);
+        assert(nread == chunk);
+
+        copied += chunk;
       }
-      free(buf);
-
-      // 文件之外的 BSS 区已经在上面 memset(pa,0,PGSIZE) 初始化为 0
 #else
       // 未开启 VME：老办法，直接写 vaddr
       void *seg_dst = (void *)(uintptr_t)ph.p_vaddr;
