@@ -1,7 +1,7 @@
 #include <am.h>
 #include <nemu.h>
 #include <klib.h>
-#include "/home/tony/codingproj/ics2025/abstract-machine/am/src/riscv/riscv.h"
+#include <arch/riscv.h>  // 原来是 "riscv.h"，路径不对
 
 static AddrSpace kas = {};
 static void* (*pgalloc_usr)(int) = NULL;
