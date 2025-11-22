@@ -43,7 +43,6 @@
 // 根据 satp.MODE 判断是否开启分页
 int isa_mmu_check(vaddr_t vaddr, int len, int type) {
   word_t satp = csr_read(CSR_SATP);
-  assert(satp != 0);                     // satp 还是 0 就说明根本没写进去
   uint32_t mode = satp >> 31;
   return mode ? MMU_TRANSLATE : MMU_DIRECT;
 }
