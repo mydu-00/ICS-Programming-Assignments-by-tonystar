@@ -49,13 +49,13 @@ static inline Context *context_kload(PCB *p, void (*entry)(void *), void *arg) {
   return p->cp;
 }
 
-// 裁剪计数
-static size_t count_vec_capped(char *const vec[], size_t max_n) {
-  if (!vec) return 0;
-  size_t n = 0;
-  while (n < max_n && vec[n] != NULL) n++;
-  return n;
-}
+// // 裁剪计数
+// static size_t count_vec_capped(char *const vec[], size_t max_n) {
+//   if (!vec) return 0;
+//   size_t n = 0;
+//   while (n < max_n && vec[n] != NULL) n++;
+//   return n;
+// }
 
 // 加载用户程序并创建用户上下文
 Context *context_uload(PCB *p, const char *filename,
@@ -64,88 +64,32 @@ Context *context_uload(PCB *p, const char *filename,
     panic("loader() not found; please provide loader to get user entry of %s", filename);
   }
 
-  // A) 先准备 argv/envp 的计数（仍在旧进程上下文里）
-  size_t argc = count_vec_capped(argv, MAX_ARG);
-  size_t envc = count_vec_capped(envp, MAX_ENV);
-
-  // 这些数组存放“用户虚拟地址”视角下的字符串指针
-  char *argv_buf[MAX_ARG];
-  char *envp_buf[MAX_ENV];
-
 #ifdef HAS_VME
-  // loader(p, ...) 内部会调用 protect(&p->as)，为该进程建立地址空间
   uintptr_t entry = loader(p, filename);
   AddrSpace *as = &p->as;
 
-  // 一次分配 8 页物理栈内存
-  char *ustack_phys = (char *)new_page(8);   // 32KB
+  // 一次分配 8 页物理栈
+  char *ustack_phys = (char *)new_page(8);
   memset(ustack_phys, 0, 8 * PGSIZE);
 
-  uintptr_t ustack_end   = (uintptr_t)as->area.end;
-  uintptr_t ustack_start = ustack_end - 8 * PGSIZE;
+  uintptr_t ustack_end   = (uintptr_t)as->area.end;          // 0x80000000
+  uintptr_t ustack_start = ustack_end - 8 * PGSIZE;          // 0x7fff8000
 
-  // 把这 8 页物理页映射到用户虚拟栈区 [ustack_start, ustack_end)
   for (int i = 0; i < 8; i++) {
     map(as,
-        (void *)(ustack_start + i * PGSIZE),      // 虚拟地址
-        (void *)(ustack_phys + i * PGSIZE),       // 物理地址
+        (void *)(ustack_start + i * PGSIZE),
+        (void *)(ustack_phys + i * PGSIZE),
         0);
   }
 
-  // sp: 实际 memcpy 使用的物理指针
-  // usp: 用户看到的虚拟栈顶地址
-  char *sp      = ustack_phys + 8 * PGSIZE;
-  uintptr_t usp = ustack_end;
-
-  // B) 从高地址向低地址拷贝字符串，同时记录虚拟地址
-  for (size_t i = 0; i < argc; i++) {
-    size_t len = strlen(argv[i]) + 1;
-    usp -= len;
-    sp  -= len;
-    memcpy(sp, argv[i], len);
-    argv_buf[i] = (char *)usp;   // 记录虚拟地址
-  }
-  for (size_t i = 0; i < envc; i++) {
-    size_t len = strlen(envp[i]) + 1;
-    usp -= len;
-    sp  -= len;
-    memcpy(sp, envp[i], len);
-    envp_buf[i] = (char *)usp;   // 记录虚拟地址
-  }
-
-  // C) 栈指针按字宽对齐
-  usp &= ~(sizeof(uintptr_t) - 1);
-  sp  = (char *)((uintptr_t)sp & ~(sizeof(uintptr_t) - 1));
-
-  // D) 在栈顶放置 argc/argv/envp 指针数组
-  // [argc][argv...][NULL][envp...][NULL]
-  size_t nwords = 1 + argc + 1 + envc + 1;
-  sp  -= nwords * sizeof(uintptr_t);
-  uintptr_t *args_ptr_phys = (uintptr_t *)sp;
-
-  uintptr_t args_va = usp;  // 用户虚拟视角下，这一块的起始地址
-
-  args_ptr_phys[0] = (uintptr_t)argc;
-  uintptr_t idx = 1;
-  for (size_t i = 0; i < argc; i++) {
-    args_ptr_phys[idx++] = (uintptr_t)argv_buf[i];
-  }
-  args_ptr_phys[idx++] = 0;
-  for (size_t i = 0; i < envc; i++) {
-    args_ptr_phys[idx++] = (uintptr_t)envp_buf[i];
-  }
-  args_ptr_phys[idx++] = 0;
-  assert(idx == nwords);
-
-  // E) 创建用户 Context，并把 argc 地址(即 args_va)放到 GPRx(a0)
+  // 先不构造 argv/envp，直接让用户看到一个空栈：
+  // _start 内部会用 a0 作为 sp，此处 GPRx 传“栈顶”
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(&p->as, kstack, (void *)entry);
-  p->cp->GPRx = args_va;
+  p->cp->GPRx = ustack_end;   // a0 用作 sp
 
-  Log("[ULoad] entry=%p, args_va=0x%08x, ustack=[0x%08x, 0x%08x)",
-      (void *)entry, (uint32_t)args_va,
-      (uint32_t)ustack_start, (uint32_t)ustack_end);
-
+  Log("[ULoad] entry=%p, ustack=[0x%08x, 0x%08x)",
+      (void *)entry, (uint32_t)ustack_start, (uint32_t)ustack_end);
 #else
   // 未开启 VME：直接用物理内存当栈
   char *ustack_base = (char *)new_page(8);         // 32KB
