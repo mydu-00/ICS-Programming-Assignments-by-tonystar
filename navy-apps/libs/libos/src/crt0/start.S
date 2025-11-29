@@ -26,9 +26,10 @@ _start:
   jal call_main
 
 #elif defined(__riscv)
-  // Nanos-lite 将用户栈顶放在 a0(GPRx)，这里用它来设置 sp
-  mv   sp, a0
+  // a0 已经被 Nanos-lite 用作“用户栈顶”
+  mv   sp, a0        // 设置栈指针
   mv   s0, zero
+  // 不再从寄存器读 argc/argv/envp，交给 call_main 内部自己决定
   jal  call_main
 
 #elif defined(__ISA_LOONGARCH32R__)

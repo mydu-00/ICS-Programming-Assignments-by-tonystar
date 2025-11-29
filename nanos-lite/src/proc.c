@@ -68,12 +68,11 @@ Context *context_uload(PCB *p, const char *filename,
   uintptr_t entry = loader(p, filename);
   AddrSpace *as = &p->as;
 
-  // 一次分配 8 页物理栈
   char *ustack_phys = (char *)new_page(8);
   memset(ustack_phys, 0, 8 * PGSIZE);
 
-  uintptr_t ustack_end   = (uintptr_t)as->area.end;          // 0x80000000
-  uintptr_t ustack_start = ustack_end - 8 * PGSIZE;          // 0x7fff8000
+  uintptr_t ustack_end   = (uintptr_t)as->area.end;     // 0x80000000
+  uintptr_t ustack_start = ustack_end - 8 * PGSIZE;     // 0x7fff8000
 
   for (int i = 0; i < 8; i++) {
     map(as,
@@ -82,11 +81,9 @@ Context *context_uload(PCB *p, const char *filename,
         0);
   }
 
-  // 先不构造 argv/envp，直接让用户看到一个空栈：
-  // _start 内部会用 a0 作为 sp，此处 GPRx 传“栈顶”
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   p->cp = ucontext(&p->as, kstack, (void *)entry);
-  p->cp->GPRx = ustack_end;   // a0 用作 sp
+  p->cp->GPRx = ustack_end;   // a0 = 用户栈顶
 
   Log("[ULoad] entry=%p, ustack=[0x%08x, 0x%08x)",
       (void *)entry, (uint32_t)ustack_start, (uint32_t)ustack_end);
