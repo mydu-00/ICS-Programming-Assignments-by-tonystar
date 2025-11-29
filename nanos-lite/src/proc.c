@@ -83,15 +83,16 @@ Context *context_uload(PCB *p, const char *filename,
   }
 
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
-  // 使用新的 ucontext 接口，直接把 ustack_end 作为 sp
   extern Context *ucontext(AddrSpace *as, Area kstack, void *entry, uintptr_t ustack_end);
   p->cp = ucontext(&p->as, kstack, (void *)entry, ustack_end);
 
-  // 暂时不传递 argc/argv/envp：a0/a1/a2 设为 0
-  p->cp->GPR1 = 0;  // a0
-  p->cp->GPR2 = 0;  // a1
-  p->cp->GPR3 = 0;  // a2
+  // 先简单传最小的 POSIX 约定：argc=1, argv[0]="nterm", envp=NULL
+  // 注意: GPR2/GPR3/GPR4 分别是 a0/a1/a2
+  p->cp->GPR2 = 1;           // a0 = argc
+  p->cp->GPR3 = (uintptr_t)argv;  // a1 = argv (内核栈地址, 目前 navy-apps 里一般只读 argv[0] 字符串指针本身)
+  p->cp->GPR4 = (uintptr_t)envp;  // a2 = envp
 
+  // 不要在这里动 GPR1(a7) - 它是用作 syscall 编号寄存器的
   Log("[ULoad] entry=%p, ustack=[0x%08x, 0x%08x)",
       (void *)entry, (uint32_t)ustack_start, (uint32_t)ustack_end);
 #else
