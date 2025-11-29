@@ -1,6 +1,7 @@
 #include <proc.h>
 #include <am.h>  // for Area, kcontext, ucontext, heap
 #include <string.h>
+#include <common.h>
 #ifdef HAS_VME
 #include <arch/riscv.h>   // 如果没有定义 PTE，则手动补上
 #ifndef PTE_V
