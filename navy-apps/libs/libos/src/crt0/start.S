@@ -27,7 +27,7 @@ _start:
 
 #elif defined(__riscv)
   // a0 已经被 Nanos-lite 用作“用户栈顶”
-  mv   sp, a0        // 设置栈指针
+  // mv   sp, a0        // 设置栈指针
   mv   s0, zero
   // 不再从寄存器读 argc/argv/envp，交给 call_main 内部自己决定
   jal  call_main
