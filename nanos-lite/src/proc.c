@@ -68,6 +68,7 @@ Context *context_uload(PCB *p, const char *filename,
   uintptr_t entry = loader(p, filename);
   AddrSpace *as = &p->as;
 
+  // 分配 8 页用户栈物理内存
   char *ustack_phys = (char *)new_page(8);
   memset(ustack_phys, 0, 8 * PGSIZE);
 
@@ -82,8 +83,14 @@ Context *context_uload(PCB *p, const char *filename,
   }
 
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
-  p->cp = ucontext(&p->as, kstack, (void *)entry);
-  p->cp->GPRx = ustack_end;   // a0 = 用户栈顶
+  // 使用新的 ucontext 接口，直接把 ustack_end 作为 sp
+  extern Context *ucontext(AddrSpace *as, Area kstack, void *entry, uintptr_t ustack_end);
+  p->cp = ucontext(&p->as, kstack, (void *)entry, ustack_end);
+
+  // 暂时不传递 argc/argv/envp：a0/a1/a2 设为 0
+  p->cp->GPR1 = 0;  // a0
+  p->cp->GPR2 = 0;  // a1
+  p->cp->GPR3 = 0;  // a2
 
   Log("[ULoad] entry=%p, ustack=[0x%08x, 0x%08x)",
       (void *)entry, (uint32_t)ustack_start, (uint32_t)ustack_end);

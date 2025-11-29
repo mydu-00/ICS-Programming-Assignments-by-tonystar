@@ -26,10 +26,9 @@ _start:
   jal call_main
 
 #elif defined(__riscv)
-  // a0 已经被 Nanos-lite 用作“用户栈顶”
-  mv   sp, a0        // 设置栈指针
+  // 栈指针 sp 已由 Nanos-lite/AM 在 ucontext 中设置好
   mv   s0, zero
-  // 不再从寄存器读 argc/argv/envp，交给 call_main 内部自己决定
+  // a0/a1/a2 由内核传递（这里我们暂时都为 0）
   jal  call_main
 
 #elif defined(__ISA_LOONGARCH32R__)

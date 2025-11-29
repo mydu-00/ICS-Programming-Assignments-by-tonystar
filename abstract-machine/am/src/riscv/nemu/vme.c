@@ -102,19 +102,37 @@ void map(AddrSpace *as, void *va, void *pa, int prot) {
   *pte0 = (ppn << 10) | PTE_V | PTE_R | PTE_W | PTE_X;
 }
 
-// 创建用户上下文：仅设置 mepc，mstatus，pdir。用户栈由 Nanos-lite 放入 GPRx。
-Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
+// // 创建用户上下文：仅设置 mepc，mstatus，pdir。用户栈由 Nanos-lite 放入 GPRx。
+// Context *ucontext(AddrSpace *as, Area kstack, void *entry) {
+//   uintptr_t top = (uintptr_t)kstack.end;
+//   Context *ctx = (Context *)(top - sizeof(Context));
+//   assert((uintptr_t)ctx >= (uintptr_t)kstack.start);
+//   memset(ctx, 0, sizeof(Context));
+
+//   // M-mode, MPP = 11
+//   ctx->mstatus = (uintptr_t)(3UL << 11);
+//   ctx->mepc = (uintptr_t)entry;
+
+//   // 记录地址空间指针（后续 __am_switch 会用到）
+//   ctx->pdir = as ? as->ptr : NULL;
+
+//   return ctx;
+// }
+
+// 创建用户上下文：设置 mepc/mstatus/pdir 和用户栈指针
+Context *ucontext(AddrSpace *as, Area kstack, void *entry, uintptr_t ustack_end) {
   uintptr_t top = (uintptr_t)kstack.end;
   Context *ctx = (Context *)(top - sizeof(Context));
   assert((uintptr_t)ctx >= (uintptr_t)kstack.start);
   memset(ctx, 0, sizeof(Context));
 
-  // M-mode, MPP = 11
-  ctx->mstatus = (uintptr_t)(3UL << 11);
-  ctx->mepc = (uintptr_t)entry;
+  ctx->mstatus = (uintptr_t)(3UL << 11);      // MPP = 11 (machine mode)
+  ctx->mepc    = (uintptr_t)entry;
+  ctx->pdir    = as ? as->ptr : NULL;
 
-  // 记录地址空间指针（后续 __am_switch 会用到）
-  ctx->pdir = as ? as->ptr : NULL;
+  // 按 RISC-V ABI：x2 是 sp
+  ctx->gpr[2] = ustack_end;                   // sp = 用户栈顶
 
+  // 不再用 GPRx(a0) 传栈顶，而是留给 argc/argv (后面再考虑)
   return ctx;
 }
