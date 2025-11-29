@@ -53,33 +53,39 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   word_t satp = csr_read(CSR_SATP);
   uint32_t mode = satp >> 31;
   if (mode == 0) {
-    // 未开启分页，直接把 vaddr 当物理地址
     return vaddr;
   }
 
-  // Sv32: satp[30:0] = PPN(root)
   paddr_t root_ppn = satp & ((1u << 31) - 1);
-  paddr_t root = root_ppn << 12;   // 根页表物理地址
+  paddr_t root = root_ppn << 12;
 
-  // 解析虚拟地址：VPN[1], VPN[0], offset
   uint32_t vpn0 = (vaddr >> 12) & 0x3ff;
   uint32_t vpn1 = (vaddr >> 22) & 0x3ff;
   uint32_t off  = vaddr & 0xfff;
 
-  // 一级页表项
   paddr_t pte1_pa = root + vpn1 * 4;
   uint32_t pte1 = paddr_read(pte1_pa, 4);
-  assert(pte1 & PTE_V);  // 必须有效，否则说明 VME map 错
+  if (!(pte1 & PTE_V)) {
+    printf("[MMU] L1 invalid: vaddr=0x%08x root=0x%08x vpn1=%u pte1_pa=0x%08x pte1=0x%08x\n",
+           (uint32_t)vaddr, (uint32_t)root, vpn1, (uint32_t)pte1_pa, pte1);
+    assert(0);
+  }
 
   paddr_t pt_base = (paddr_t)(pte1 >> 10) << 12;
 
-  // 二级页表项
   paddr_t pte0_pa = pt_base + vpn0 * 4;
   uint32_t pte0 = paddr_read(pte0_pa, 4);
-  assert(pte0 & PTE_V);
+  if (!(pte0 & PTE_V)) {
+    printf("[MMU] L0 invalid: vaddr=0x%08x root=0x%08x vpn1=%u vpn0=%u "
+           "pte1_pa=0x%08x pte1=0x%08x pt_base=0x%08x "
+           "pte0_pa=0x%08x pte0=0x%08x\n",
+           (uint32_t)vaddr, (uint32_t)root, vpn1, vpn0,
+           (uint32_t)pte1_pa, pte1, (uint32_t)pt_base,
+           (uint32_t)pte0_pa, pte0);
+    assert(0);
+  }
 
   paddr_t ppn = pte0 >> 10;
   paddr_t pa  = (ppn << 12) | off;
-
   return pa;
 }
