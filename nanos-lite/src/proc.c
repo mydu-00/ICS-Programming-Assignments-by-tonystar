@@ -68,6 +68,11 @@ Context *context_uload(PCB *p, const char *filename,
   uintptr_t entry = loader(p, filename);
   AddrSpace *as = &p->as;
 
+  // 统计 argc / envc
+  size_t argc = 0, envc = 0;
+  if (argv) while (argv[argc] && argc < MAX_ARG) argc++;
+  if (envp) while (envp[envc] && envc < MAX_ENV) envc++;
+
   // 分配 8 页用户栈物理内存
   char *ustack_phys = (char *)new_page(8);
   memset(ustack_phys, 0, 8 * PGSIZE);
@@ -75,6 +80,7 @@ Context *context_uload(PCB *p, const char *filename,
   uintptr_t ustack_end   = (uintptr_t)as->area.end;     // 0x80000000
   uintptr_t ustack_start = ustack_end - 8 * PGSIZE;     // 0x7fff8000
 
+  // 映射虚拟栈区间
   for (int i = 0; i < 8; i++) {
     map(as,
         (void *)(ustack_start + i * PGSIZE),
@@ -82,19 +88,79 @@ Context *context_uload(PCB *p, const char *filename,
         0);
   }
 
+  // sp_phys: 实际 memcpy 的物理栈指针
+  // usp: 用户看到的虚拟栈指针
+  char *sp_phys   = ustack_phys + 8 * PGSIZE;
+  uintptr_t usp   = ustack_end;
+
+  // 1) 先拷贝所有字符串，从高地址向低地址
+  char *argv_va_buf[MAX_ARG];
+  char *envp_va_buf[MAX_ENV];
+
+  for (size_t i = 0; i < argc; i++) {
+    size_t len = strlen(argv[i]) + 1;
+    usp     -= len;
+    sp_phys -= len;
+    memcpy(sp_phys, argv[i], len);
+    argv_va_buf[i] = (char *)usp;   // 记录虚拟地址
+  }
+
+  for (size_t i = 0; i < envc; i++) {
+    size_t len = strlen(envp[i]) + 1;
+    usp     -= len;
+    sp_phys -= len;
+    memcpy(sp_phys, envp[i], len);
+    envp_va_buf[i] = (char *)usp;   // 记录虚拟地址
+  }
+
+  // 2) 对齐到字宽
+  usp     &= ~(sizeof(uintptr_t) - 1);
+  sp_phys  = (char *)((uintptr_t)sp_phys & ~(sizeof(uintptr_t) - 1));
+
+  // 3) 布局 argv/envp 指针数组: [argv_ptrs...][NULL][envp_ptrs...][NULL]
+  // 先 envp 再 argv 还是先 argv 再 envp，取决于你要给 call_main 什么 ABI，
+  // 这里我们只保证 a1/a2 指向正确的 argv/envp 起始地址即可。
+
+  // 布局 envp 数组
+  sp_phys  -= (envc + 1) * sizeof(uintptr_t);
+  uintptr_t envp_va = usp - (envc + 1) * sizeof(uintptr_t);
+  uintptr_t *envp_ptrs_phys = (uintptr_t *)sp_phys;
+  for (size_t i = 0; i < envc; i++) {
+    envp_ptrs_phys[i] = (uintptr_t)envp_va_buf[i];
+  }
+  envp_ptrs_phys[envc] = 0;  // NULL 结尾
+
+  usp = envp_va;
+
+  // 布局 argv 数组
+  sp_phys  -= (argc + 1) * sizeof(uintptr_t);
+  uintptr_t argv_va = usp - (argc + 1) * sizeof(uintptr_t);
+  uintptr_t *argv_ptrs_phys = (uintptr_t *)sp_phys;
+  for (size_t i = 0; i < argc; i++) {
+    argv_ptrs_phys[i] = (uintptr_t)argv_va_buf[i];
+  }
+  argv_ptrs_phys[argc] = 0;
+
+  usp = argv_va;
+
+  // 4) 再对齐一次，作为最终的 sp
+  usp     &= ~(sizeof(uintptr_t) - 1);
+  sp_phys  = (char *)((uintptr_t)sp_phys & ~(sizeof(uintptr_t) - 1));
+
+  // 5) 创建用户 Context，设置 mepc/mstatus/pdir/sp
   Area kstack = (Area){ p->stack, p->stack + sizeof(p->stack) };
   extern Context *ucontext(AddrSpace *as, Area kstack, void *entry, uintptr_t ustack_end);
   p->cp = ucontext(&p->as, kstack, (void *)entry, ustack_end);
 
-  // 先简单传最小的 POSIX 约定：argc=1, argv[0]="nterm", envp=NULL
-  // 注意: GPR2/GPR3/GPR4 分别是 a0/a1/a2
-  p->cp->GPR2 = 1;           // a0 = argc
-  p->cp->GPR3 = (uintptr_t)argv;  // a1 = argv (内核栈地址, 目前 navy-apps 里一般只读 argv[0] 字符串指针本身)
-  p->cp->GPR4 = (uintptr_t)envp;  // a2 = envp
+  // 6) 设置 a0/a1/a2: argc, argv, envp（都是用户虚拟地址）
+  p->cp->GPR2 = (uintptr_t)argc;    // a0
+  p->cp->GPR3 = (uintptr_t)argv_va; // a1
+  p->cp->GPR4 = (uintptr_t)envp_va; // a2
 
-  // 不要在这里动 GPR1(a7) - 它是用作 syscall 编号寄存器的
-  Log("[ULoad] entry=%p, ustack=[0x%08x, 0x%08x)",
-      (void *)entry, (uint32_t)ustack_start, (uint32_t)ustack_end);
+  Log("[ULoad] entry=%p, argc=%d, argv_va=0x%08x, ustack=[0x%08x, 0x%08x)",
+      (void *)entry, (int)argc, (uint32_t)argv_va,
+      (uint32_t)ustack_start, (uint32_t)ustack_end);
+
 #else
   // 未开启 VME：直接用物理内存当栈
   char *ustack_base = (char *)new_page(8);         // 32KB
