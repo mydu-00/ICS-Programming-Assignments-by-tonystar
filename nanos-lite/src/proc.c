@@ -142,6 +142,10 @@ Context *context_uload(PCB *p, const char *filename,
   p->cp = ucontext(&p->as, kstack, (void *)entry);
   p->cp->GPRx = args_va;
 
+  Log("[ULoad] entry=%p, args_va=0x%08x, ustack=[0x%08x, 0x%08x)",
+      (void *)entry, (uint32_t)args_va,
+      (uint32_t)ustack_start, (uint32_t)ustack_end);
+
 #else
   // 未开启 VME：直接用物理内存当栈
   char *ustack_base = (char *)new_page(8);         // 32KB

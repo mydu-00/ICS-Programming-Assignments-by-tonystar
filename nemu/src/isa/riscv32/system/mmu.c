@@ -48,13 +48,11 @@ int isa_mmu_check(vaddr_t vaddr, int len, int type) {
 }
 
 paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
-  (void)len; (void)type;
+  (void)len;
 
   word_t satp = csr_read(CSR_SATP);
   uint32_t mode = satp >> 31;
-  if (mode == 0) {
-    return vaddr;
-  }
+  if (mode == 0) return vaddr;
 
   paddr_t root_ppn = satp & ((1u << 31) - 1);
   paddr_t root = root_ppn << 12;
@@ -66,8 +64,10 @@ paddr_t isa_mmu_translate(vaddr_t vaddr, int len, int type) {
   paddr_t pte1_pa = root + vpn1 * 4;
   uint32_t pte1 = paddr_read(pte1_pa, 4);
   if (!(pte1 & PTE_V)) {
-    printf("[MMU] L1 invalid: vaddr=0x%08x root=0x%08x vpn1=%u pte1_pa=0x%08x pte1=0x%08x\n",
-           (uint32_t)vaddr, (uint32_t)root, vpn1, (uint32_t)pte1_pa, pte1);
+    printf("[MMU] L1 invalid: vaddr=0x%08x pc=0x%08x type=%d "
+           "root=0x%08x vpn1=%u pte1_pa=0x%08x pte1=0x%08x\n",
+           (uint32_t)vaddr, (uint32_t)cpu.pc, type,
+           (uint32_t)root, vpn1, (uint32_t)pte1_pa, pte1);
     assert(0);
   }
 
