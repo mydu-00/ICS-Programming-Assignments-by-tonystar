@@ -28,7 +28,7 @@
 #define MSTATUS_MPIE (1u << 7)
 #endif
 
-word_t csr_mepc = 0, csr_mcause = 0, csr_mstatus = 0, csr_mtvec = 0;
+word_t csr_mepc = 0, csr_mcause = 0, csr_mstatus = 0, csr_mtvec = 0, csr_satp = 0;
 
 static inline void etrace_log(word_t cause, vaddr_t epc,
                               word_t old_mstatus, word_t new_mstatus,
