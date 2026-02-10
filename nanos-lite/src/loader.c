@@ -153,6 +153,15 @@ uintptr_t loader(PCB *pcb, const char *filename) {
       Log("Loaded segment: off=0x%x vaddr=%p filesz=%u memsz=%u",
           (unsigned)ph.p_offset, (void *)ph.p_vaddr,
           (unsigned)ph.p_filesz, (unsigned)ph.p_memsz);
+
+#ifdef HAS_VME
+      // 更新 pcb->max_brk，使其指向已加载段的末尾
+      // 这样 mm_brk 才能知道哪里是堆的起始，从而正确分配新页面
+      uintptr_t new_brk = va_start + ph.p_memsz;
+      if (new_brk > pcb->max_brk) {
+        pcb->max_brk = new_brk;
+      }
+#endif
     }
   }
 
