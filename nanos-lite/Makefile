@@ -17,6 +17,9 @@ endif
 ./src/resources.S: $(RAMDISK_FILE)
 	@touch $@
 
+$(RAMDISK_FILE):
+	$(MAKE) update
+
 ifeq ($(HAS_NAVY),)
 files = $(RAMDISK_FILE) src/files.h src/syscall.h
 # create an empty file if it does not exist
