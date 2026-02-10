@@ -1,5 +1,5 @@
 #include <common.h>
-#include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
+#include <am.h>
 #include "syscall.h"
 #include <stdint.h>
 #include <stdio.h>

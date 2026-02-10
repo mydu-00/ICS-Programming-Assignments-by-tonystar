@@ -1,5 +1,5 @@
 #include <common.h>
-#include "/home/tony/codingproj/ics2025/abstract-machine/am/include/am.h"
+#include <am.h>
 #include <proc.h>   // 引入 PCB 的完整定义，里面有 AddrSpace as 和 uintptr_t max_brk
 // #include <nemu.h>
 #define PGSIZE    4096
