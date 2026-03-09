@@ -259,12 +259,18 @@ static word_t forward_value(int rs, word_t reg_val) {
   if (pipe.ex_mem.valid && pipe.ex_mem.reg_write &&
       pipe.ex_mem.rd == rs && pipe.ex_mem.rd != 0 &&
       !pipe.ex_mem.mem_read) {
+    if (perf.instructions < 30)
+      printf("    FWD EX->EX rs=x%d from ex_mem.pc=" FMT_WORD " rd=x%d val=" FMT_WORD "\n",
+             rs, pipe.ex_mem.pc, pipe.ex_mem.rd, pipe.ex_mem.alu_result);
     return pipe.ex_mem.alu_result;
   }
 
   /* MEM->EX: 来自上一轮 MEM/WB latch (WB 刚退休的那条指令) */
   if (saved_mem_wb.valid && saved_mem_wb.reg_write &&
       saved_mem_wb.rd == rs && saved_mem_wb.rd != 0) {
+    if (perf.instructions < 30)
+      printf("    FWD MEM->EX rs=x%d from saved_mem_wb.pc=" FMT_WORD " rd=x%d val=" FMT_WORD "\n",
+             rs, saved_mem_wb.pc, saved_mem_wb.rd, saved_mem_wb.result);
     return saved_mem_wb.result;
   }
 
