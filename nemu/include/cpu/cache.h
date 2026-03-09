@@ -1,32 +1,17 @@
 /*
- * cache.h — 组相联缓存模型（Set-Associative Cache Simulator）
+ * cache.h -- 周期精确的组相联缓存模型
  *
- * ┌─────────────────────────────────────────────────────────────────┐
- * │  为什么需要缓存？                                                │
- * │                                                                 │
- * │  CPU 寄存器访问 ≈ 1 周期                                        │
- * │  SRAM (L1 cache)  ≈ 1-4 周期                                   │
- * │  DRAM (主存)      ≈ 50-200 周期                                 │
- * │                                                                 │
- * │  如果每次访存都等主存响应，CPU 大部分时间在空等——                   │
- * │  流水线再怎么优化也无济于事。                                       │
- * │  缓存利用时间局部性（temporal locality）和空间局部性               │
- * │  （spatial locality）来弥合这个速度鸿沟。                         │
- * └─────────────────────────────────────────────────────────────────┘
+ * 与之前 metadata-only 版本的关键区别：
+ *   本模型存储实际数据。IF 级从 I-cache 读取指令字，MEM 级从 D-cache
+ *   读/写数据。cache miss 时从 pmem[] 填充整个 block，dirty 替换时
+ *   将 block 写回 pmem[]。这使得 cache 成为数据通路的一部分，
+ *   而不仅仅是一个延迟计数器。
  *
- * 本模型实现：
- * - 可配置的组数（sets）、路数（ways）、块大小（block_size）
- * - LRU 替换策略
- * - write-back + write-allocate 写策略
- * - 独立的 I-cache 和 D-cache 实例
- *
- * 地址分解：
- *   ┌──────────┬───────────┬──────────────┐
- *   │   tag    │   index   │ block offset │
- *   └──────────┴───────────┴──────────────┘
- *   index 选择哪一组（set）
- *   tag   在该组内匹配哪一路（way）
- *   offset 确定块内字节位置
+ * 地址分解 (以 64 组 x 64B block 为例):
+ *   addr = 0x80001234
+ *   offset = addr[ 5:0] = 0x34  (块内偏移)
+ *   index  = addr[11:6] = 0x48  (选组)
+ *   tag    = addr[31:12]        (组内匹配)
  */
 
 #ifndef __CPU_CACHE_H__
@@ -34,91 +19,72 @@
 
 #include <common.h>
 
-/* ========================================================================
- * 缓存行（Cache Line / Block）
- *
- * 每个缓存行存储一个固定大小的内存块，加上元数据：
- * - valid: 是否包含有效数据
- * - dirty: 是否被修改过（write-back 策略需要在替换时写回主存）
- * - tag: 地址的高位部分，用于匹配
- * - lru_counter: LRU 替换时的排序依据
- * ======================================================================== */
+/* 最大块大小 (字节) -- 用于静态数组; 实际大小由 init 参数决定 */
+#define CACHE_MAX_BLOCK_SIZE 64
+
 typedef struct {
   bool     valid;
   bool     dirty;
   uint32_t tag;
-  uint32_t lru_counter;  /* 值越大表示越久没被访问 */
-  /* 注：我们不存储实际数据内容，只模拟命中/缺失行为 */
+  uint32_t lru_counter;
+  uint8_t  data[CACHE_MAX_BLOCK_SIZE];  /* 存储实际数据 */
 } CacheLine;
 
-/* ========================================================================
- * 缓存实例
- * ======================================================================== */
 typedef struct {
-  const char *name;           /* "L1-I" / "L1-D" 等标识 */
+  const char *name;
 
-  int      num_sets;          /* 组数（必须是 2 的幂） */
-  int      num_ways;          /* 每组的路数（相联度） */
-  int      block_size;        /* 块大小（字节，必须是 2 的幂） */
+  int      num_sets;
+  int      num_ways;
+  int      block_size;
 
-  /* 派生常量（init 时计算） */
-  int      offset_bits;       /* log2(block_size) */
-  int      index_bits;        /* log2(num_sets) */
+  int      offset_bits;
+  int      index_bits;
   uint32_t offset_mask;
   uint32_t index_mask;
 
-  /* 缓存命中延迟 / 缺失惩罚（周期数） */
-  int      hit_latency;       /* 命中时的额外延迟（L1 通常 = 0 或 1） */
-  int      miss_penalty;      /* 缺失时的额外延迟（模拟主存访问时间） */
+  int      hit_latency;
+  int      miss_penalty;
 
-  /* 缓存行数组 [num_sets][num_ways] */
   CacheLine *lines;
 
-  /* 统计 */
   uint64_t accesses;
   uint64_t hits;
 } Cache;
 
-/* ========================================================================
- * 缓存操作接口
- *
- * 返回值：访问此地址的延迟周期数
- * - hit:  返回 hit_latency
- * - miss: 返回 miss_penalty（可能包括 dirty writeback 的额外开销）
- * ======================================================================== */
-
-/* 初始化缓存实例 */
+/* 初始化 / 释放 */
 void cache_init(Cache *c, const char *name,
                 int num_sets, int num_ways, int block_size,
                 int hit_latency, int miss_penalty);
-
-/* 释放缓存内存 */
 void cache_free(Cache *c);
 
-/* 读访问（IF 取指 / MEM 读） */
-int cache_read(Cache *c, paddr_t addr);
+/*
+ * cache_read_data: 从 cache 读取 len 字节到 *out_data (host byte order)
+ *   返回延迟周期数 (hit → hit_latency; miss → miss_penalty + 可能的 writeback)
+ *
+ * cache_write_data: 将 data 写入 cache 对应位置
+ *   采用 write-back + write-allocate
+ *   返回延迟
+ *
+ * cache_fetch_inst: 专用于 I-cache 的 4 字节取指, 返回指令字
+ *   out_latency 输出延迟
+ */
+int  cache_read_data(Cache *c, paddr_t addr, int len, word_t *out_data);
+int  cache_write_data(Cache *c, paddr_t addr, int len, word_t data);
+uint32_t cache_fetch_inst(Cache *c, paddr_t addr, int *out_latency);
 
-/* 写访问（MEM 写） */
-int cache_write(Cache *c, paddr_t addr);
-
-/* 使整个缓存无效 */
 void cache_invalidate(Cache *c);
-
-/* 打印缓存统计信息 */
 void cache_print_stats(const Cache *c);
 
-/* ========================================================================
- * 全局缓存实例（在 cache.c 中定义）
- * ======================================================================== */
-extern Cache icache;   /* L1 指令缓存 */
-extern Cache dcache;   /* L1 数据缓存 */
+/* 全局实例 */
+extern Cache icache;
+extern Cache dcache;
 
-/* 默认配置参数 */
-#define ICACHE_SETS       64     /* 64 组 */
-#define ICACHE_WAYS       4      /* 4 路组相联 */
-#define ICACHE_BLOCK_SIZE 64     /* 64 字节/块 */
-#define ICACHE_HIT_LAT    0      /* 命中 0 额外周期（流水线内吸收） */
-#define ICACHE_MISS_PEN   10     /* 缺失 10 周期 */
+/* 默认配置 */
+#define ICACHE_SETS       64
+#define ICACHE_WAYS       4
+#define ICACHE_BLOCK_SIZE 64
+#define ICACHE_HIT_LAT    0
+#define ICACHE_MISS_PEN   10
 
 #define DCACHE_SETS       64
 #define DCACHE_WAYS       4

@@ -2,47 +2,28 @@
 #ifdef CONFIG_CYCLE_ACCURATE
 
 /*
- * cache.c — 组相联缓存模拟器实现
+ * cache.c -- 存储真实数据的组相联缓存
  *
- * 缓存的核心思想：
- *   程序访问内存具有「局部性」——最近访问的地址很可能再次被访问（时间局部性），
- *   相邻地址也很可能被访问（空间局部性）。缓存就是利用这一点，
- *   在 CPU 和主存之间放一块小容量快速存储，把最近用到的数据留在里面。
- *
- * 地址分解示例（以 64 组、64B 块为例）:
- *   地址 = 0x80001234
- *   block_offset = addr[5:0]  = 0x34  (64B 块内偏移)
- *   index        = addr[11:6] = 0x48  (选择哪一组)
- *   tag          = addr[31:12]= 0x80001 (组内匹配哪一路)
- *
- * 替换策略：LRU（Least Recently Used）
- *   每次访问时，被命中的行的 lru_counter 归零，其余行加一。
- *   需要替换时，选择 lru_counter 最大（最久没访问）的行驱逐。
+ * miss 时从 pmem[] (通过 guest_to_host) 填充整个 cache block;
+ * dirty 替换时将 block 写回 pmem[]。
+ * 这使得 cache 成为数据通路的真实组成部分。
  */
 
 #include <cpu/cache.h>
 #include <memory/paddr.h>
+#include <memory/host.h>
 #include <string.h>
 #include <stdlib.h>
 
-/* ========================================================================
- * 全局实例
- * ======================================================================== */
 Cache icache;
 Cache dcache;
 
-/* ========================================================================
- * 辅助：计算 log2（仅用于 2 的幂）
- * ======================================================================== */
 static int log2i(int n) {
   int r = 0;
   while ((1 << r) < n) r++;
   return r;
 }
 
-/* ========================================================================
- * 初始化
- * ======================================================================== */
 void cache_init(Cache *c, const char *name,
                 int num_sets, int num_ways, int block_size,
                 int hit_latency, int miss_penalty) {
@@ -66,53 +47,40 @@ void cache_init(Cache *c, const char *name,
 }
 
 void cache_free(Cache *c) {
-  if (c->lines) {
-    free(c->lines);
-    c->lines = NULL;
-  }
+  if (c->lines) { free(c->lines); c->lines = NULL; }
 }
 
-/* ========================================================================
- * 地址分解
- * ======================================================================== */
+/* ---- 地址分解 ---- */
 static inline uint32_t get_tag(const Cache *c, paddr_t addr) {
   return (uint32_t)(addr >> (c->offset_bits + c->index_bits));
 }
-
 static inline uint32_t get_index(const Cache *c, paddr_t addr) {
   return (uint32_t)((addr >> c->offset_bits) & c->index_mask);
 }
-
-/* 获取某一组的第一个 CacheLine 的指针 */
+static inline uint32_t get_offset(const Cache *c, paddr_t addr) {
+  return (uint32_t)(addr & c->offset_mask);
+}
 static inline CacheLine *get_set(Cache *c, uint32_t index) {
   return &c->lines[index * c->num_ways];
 }
+/* 块对齐地址 */
+static inline paddr_t block_addr(const Cache *c, paddr_t addr) {
+  return addr & ~((paddr_t)c->offset_mask);
+}
 
-/* ========================================================================
- * LRU 更新
- *
- * 当路 hit_way 被访问时：
- *   1. 同组内所有 counter <= hit_way的counter 的行，counter 不变
- *   2. 同组内所有 counter > hit_way的counter 的行，counter 不变
- *   简化做法：hit_way 的 counter 归零，同组其它行 counter 都 +1
- * ======================================================================== */
+/* ---- LRU ---- */
 static void update_lru(CacheLine *set, int num_ways, int hit_way) {
   uint32_t hit_cnt = set[hit_way].lru_counter;
   for (int i = 0; i < num_ways; i++) {
-    if (set[i].valid && set[i].lru_counter < hit_cnt) {
+    if (set[i].valid && set[i].lru_counter < hit_cnt)
       set[i].lru_counter++;
-    }
   }
   set[hit_way].lru_counter = 0;
 }
 
-/* 找到 LRU（counter 最大）的行索引 */
 static int find_lru_victim(CacheLine *set, int num_ways) {
-  /* 优先选无效行 */
-  for (int i = 0; i < num_ways; i++) {
+  for (int i = 0; i < num_ways; i++)
     if (!set[i].valid) return i;
-  }
-  /* 选 counter 最大的 */
   int victim = 0;
   uint32_t max_cnt = 0;
   for (int i = 0; i < num_ways; i++) {
@@ -124,113 +92,146 @@ static int find_lru_victim(CacheLine *set, int num_ways) {
   return victim;
 }
 
-/* ========================================================================
- * 查找：在指定组中查找 tag，返回路号或 -1
- * ======================================================================== */
 static int find_line(CacheLine *set, int num_ways, uint32_t tag) {
-  for (int i = 0; i < num_ways; i++) {
-    if (set[i].valid && set[i].tag == tag) {
-      return i;
-    }
-  }
+  for (int i = 0; i < num_ways; i++)
+    if (set[i].valid && set[i].tag == tag) return i;
   return -1;
 }
 
-/* ========================================================================
- * 读访问
+/* ---- 块填充 / 写回 ----
  *
- * 返回延迟周期数：
- *   命中 → hit_latency
- *   未命中 → miss_penalty（包含：分配新行 + 从主存加载一个块的时间）
- * ======================================================================== */
-int cache_read(Cache *c, paddr_t addr) {
-  c->accesses++;
-
-  uint32_t tag   = get_tag(c, addr);
-  uint32_t index = get_index(c, addr);
-  CacheLine *set = get_set(c, index);
-
-  int way = find_line(set, c->num_ways, tag);
-  if (way >= 0) {
-    /* 命中 */
-    c->hits++;
-    update_lru(set, c->num_ways, way);
-    return c->hit_latency;
+ * fill_block: 从 pmem[] 拷贝一整个 block 到 cache line
+ * writeback_block: 将 dirty cache line 写回 pmem[]
+ */
+static void fill_block(Cache *c, CacheLine *line, paddr_t baddr) {
+  if (in_pmem(baddr)) {
+    memcpy(line->data, guest_to_host(baddr), c->block_size);
+  } else {
+    /* MMIO 区域不做 block 填充; 清零 */
+    memset(line->data, 0, c->block_size);
   }
+}
 
-  /* 未命中：选择 victim 并替换 */
+static void writeback_block(Cache *c, CacheLine *line, uint32_t index) {
+  /* 重构该行的物理地址 */
+  paddr_t baddr = ((paddr_t)line->tag << (c->offset_bits + c->index_bits))
+                | ((paddr_t)index << c->offset_bits);
+  if (in_pmem(baddr)) {
+    memcpy(guest_to_host(baddr), line->data, c->block_size);
+  }
+}
+
+/* ================================================================
+ * 分配 cache line (miss path)
+ * 返回延迟, 并将 *out_way 设为分配到的路号
+ * ================================================================ */
+static int allocate_line(Cache *c, paddr_t addr, uint32_t index,
+                         uint32_t tag, CacheLine *set, int *out_way) {
   int victim = find_lru_victim(set, c->num_ways);
-
-  /* 如果 victim 是 dirty 的，还需要额外写回时间
-   * （简化：我们把 dirty writeback 的开销合并到 miss_penalty 中） */
   int extra = 0;
+
+  /* dirty writeback */
   if (set[victim].valid && set[victim].dirty) {
-    extra = c->miss_penalty / 2;  /* 写回半个周期（简化） */
+    writeback_block(c, &set[victim], index);
+    extra = c->miss_penalty / 2;
   }
+
+  /* 从主存填充 */
+  paddr_t baddr = block_addr(c, addr);
+  fill_block(c, &set[victim], baddr);
 
   set[victim].valid = true;
   set[victim].dirty = false;
   set[victim].tag   = tag;
   update_lru(set, c->num_ways, victim);
 
+  *out_way = victim;
   return c->miss_penalty + extra;
 }
 
-/* ========================================================================
- * 写访问（Write-Back + Write-Allocate 策略）
- *
- * Write-Allocate：写未命中时，先把整个块从主存加载到缓存，再修改
- * Write-Back：写操作只修改缓存行，标记 dirty，替换时才写回主存
- *
- * 对比 Write-Through：每次写都立即写主存——简单但慢
- * ======================================================================== */
-int cache_write(Cache *c, paddr_t addr) {
+/* ================================================================
+ * 读 len 字节, 结果存入 *out_data (host byte order)
+ * ================================================================ */
+int cache_read_data(Cache *c, paddr_t addr, int len, word_t *out_data) {
   c->accesses++;
 
-  uint32_t tag   = get_tag(c, addr);
-  uint32_t index = get_index(c, addr);
-  CacheLine *set = get_set(c, index);
+  uint32_t tag    = get_tag(c, addr);
+  uint32_t index  = get_index(c, addr);
+  uint32_t offset = get_offset(c, addr);
+  CacheLine *set  = get_set(c, index);
 
   int way = find_line(set, c->num_ways, tag);
+  int latency;
+
   if (way >= 0) {
-    /* 写命中：标记 dirty，更新 LRU */
     c->hits++;
-    set[way].dirty = true;
     update_lru(set, c->num_ways, way);
-    return c->hit_latency;
+    latency = c->hit_latency;
+  } else {
+    latency = allocate_line(c, addr, index, tag, set, &way);
   }
 
-  /* 写未命中：Write-Allocate — 先加载再写 */
-  int victim = find_lru_victim(set, c->num_ways);
-
-  int extra = 0;
-  if (set[victim].valid && set[victim].dirty) {
-    extra = c->miss_penalty / 2;
-  }
-
-  set[victim].valid = true;
-  set[victim].dirty = true;  /* 写入后立即标记 dirty */
-  set[victim].tag   = tag;
-  update_lru(set, c->num_ways, victim);
-
-  return c->miss_penalty + extra;
+  /* 从 cache line data[] 读出 */
+  CacheLine *line = &set[way];
+  word_t val = 0;
+  memcpy(&val, &line->data[offset], len);
+  *out_data = val;
+  return latency;
 }
 
-/* ========================================================================
- * 使整个缓存无效（如地址空间切换时）
- * ======================================================================== */
+/* ================================================================
+ * 写 len 字节 (write-back + write-allocate)
+ * ================================================================ */
+int cache_write_data(Cache *c, paddr_t addr, int len, word_t data) {
+  c->accesses++;
+
+  uint32_t tag    = get_tag(c, addr);
+  uint32_t index  = get_index(c, addr);
+  uint32_t offset = get_offset(c, addr);
+  CacheLine *set  = get_set(c, index);
+
+  int way = find_line(set, c->num_ways, tag);
+  int latency;
+
+  if (way >= 0) {
+    c->hits++;
+    update_lru(set, c->num_ways, way);
+    latency = c->hit_latency;
+  } else {
+    latency = allocate_line(c, addr, index, tag, set, &way);
+  }
+
+  /* 写入 cache line */
+  CacheLine *line = &set[way];
+  memcpy(&line->data[offset], &data, len);
+  line->dirty = true;
+  return latency;
+}
+
+/* ================================================================
+ * I-cache 取指专用: 读 4 字节指令
+ * ================================================================ */
+uint32_t cache_fetch_inst(Cache *c, paddr_t addr, int *out_latency) {
+  word_t inst = 0;
+  *out_latency = cache_read_data(c, addr, 4, &inst);
+  return (uint32_t)inst;
+}
+
+/* ================================================================ */
 void cache_invalidate(Cache *c) {
   int total = c->num_sets * c->num_ways;
   for (int i = 0; i < total; i++) {
+    /* dirty line 先写回 */
+    if (c->lines[i].valid && c->lines[i].dirty) {
+      int index = i / c->num_ways;
+      writeback_block(c, &c->lines[i], index);
+    }
     c->lines[i].valid = false;
     c->lines[i].dirty = false;
     c->lines[i].lru_counter = 0;
   }
 }
 
-/* ========================================================================
- * 统计报告
- * ======================================================================== */
 void cache_print_stats(const Cache *c) {
   printf("  [%s] accesses=%" PRIu64 " hits=%" PRIu64 " misses=%" PRIu64
          " hit_rate=%.2f%%\n",
