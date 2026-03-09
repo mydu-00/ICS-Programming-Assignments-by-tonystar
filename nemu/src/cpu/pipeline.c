@@ -274,6 +274,12 @@ static word_t forward_value(int rs, word_t reg_val) {
     return saved_mem_wb.result;
   }
 
+  if (perf.instructions < 30 && rs != 0)
+    printf("    FWD NONE rs=x%d reg_val=" FMT_WORD " (ex_mem: v=%d rw=%d rd=%d mr=%d | smwb: v=%d rw=%d rd=%d)\n",
+           rs, reg_val,
+           pipe.ex_mem.valid, pipe.ex_mem.reg_write, pipe.ex_mem.rd, pipe.ex_mem.mem_read,
+           saved_mem_wb.valid, saved_mem_wb.reg_write, saved_mem_wb.rd);
+
   return reg_val;
 }
 
