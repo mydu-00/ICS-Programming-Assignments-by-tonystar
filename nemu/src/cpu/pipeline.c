@@ -259,26 +259,14 @@ static word_t forward_value(int rs, word_t reg_val) {
   if (pipe.ex_mem.valid && pipe.ex_mem.reg_write &&
       pipe.ex_mem.rd == rs && pipe.ex_mem.rd != 0 &&
       !pipe.ex_mem.mem_read) {
-    if (perf.instructions < 30)
-      printf("    FWD EX->EX rs=x%d from ex_mem.pc=" FMT_WORD " rd=x%d val=" FMT_WORD "\n",
-             rs, pipe.ex_mem.pc, pipe.ex_mem.rd, pipe.ex_mem.alu_result);
     return pipe.ex_mem.alu_result;
   }
 
   /* MEM->EX: 来自上一轮 MEM/WB latch (WB 刚退休的那条指令) */
   if (saved_mem_wb.valid && saved_mem_wb.reg_write &&
       saved_mem_wb.rd == rs && saved_mem_wb.rd != 0) {
-    if (perf.instructions < 30)
-      printf("    FWD MEM->EX rs=x%d from saved_mem_wb.pc=" FMT_WORD " rd=x%d val=" FMT_WORD "\n",
-             rs, saved_mem_wb.pc, saved_mem_wb.rd, saved_mem_wb.result);
     return saved_mem_wb.result;
   }
-
-  if (perf.instructions < 30 && rs != 0)
-    printf("    FWD NONE rs=x%d reg_val=" FMT_WORD " (ex_mem: v=%d rw=%d rd=%d mr=%d | smwb: v=%d rw=%d rd=%d)\n",
-           rs, reg_val,
-           pipe.ex_mem.valid, pipe.ex_mem.reg_write, pipe.ex_mem.rd, pipe.ex_mem.mem_read,
-           saved_mem_wb.valid, saved_mem_wb.reg_write, saved_mem_wb.rd);
 
   return reg_val;
 }
@@ -314,9 +302,6 @@ static bool stage_wb(void) {
   if (!in->valid) return false;
 
   if (in->reg_write && in->rd != 0) {
-    if (perf.instructions < 30)
-      printf("  WB[%3" PRIu64 "] pc=" FMT_WORD " rd=x%d <- " FMT_WORD "\n",
-             perf.instructions, in->pc, in->rd, in->result);
     cpu.gpr[in->rd] = in->result;
   }
   cpu.gpr[0] = 0;
@@ -407,10 +392,6 @@ static void stage_ex(void) {
    */
   word_t src1 = forward_value(in->rs1, in->rs1_val);
   word_t src2_fwd = forward_value(in->rs2, in->rs2_val);
-
-  if (perf.instructions < 30)
-    printf("  EX pc=" FMT_WORD " inst=%08x rs1=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ") rs2=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ")\n",
-           in->pc, in->inst, in->rs1, in->rs1_val, src1, in->rs2, in->rs2_val, src2_fwd);
 
   /* 现在可以安全写 out */
   out->valid     = true;
