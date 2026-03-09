@@ -28,8 +28,9 @@ void engine_start();
 int is_exit_status_bad();
 
 int main(int argc, char *argv[]) {
-  /* 测试模式：如果第一个参数是一个可读文件，则把它当作生成器的 input */
-  if (argc > 1) {
+  /* 测试模式：如果第一个参数是 .txt 文件，则把它当作表达式测试的 input */
+  const char *ext = argc > 1 ? strrchr(argv[1], '.') : NULL;
+  if (argc > 1 && ext && strcmp(ext, ".txt") == 0) {
     FILE *f = fopen(argv[1], "r");
     if (f) {
       init_regex(); /* 确保正则编译，expr() 依赖它 */
