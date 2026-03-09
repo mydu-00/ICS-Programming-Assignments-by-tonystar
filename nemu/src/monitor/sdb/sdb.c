@@ -15,6 +15,9 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#ifdef CONFIG_CYCLE_ACCURATE
+#include <cpu/pipeline.h>
+#endif
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
@@ -164,6 +167,19 @@ static int cmd_d(char *args) {
   return 0;
 }
 
+#ifdef CONFIG_CYCLE_ACCURATE
+static int cmd_pipeline(char *args) {
+  uint64_t n = -1ULL;  /* default: run until halt */
+  if (args) {
+    char *endptr = NULL;
+    n = strtoull(args, &endptr, 10);
+    if (endptr == args) n = -1ULL;
+  }
+  cpu_exec_pipeline(n);
+  return 0;
+}
+#endif
+
 static struct {
   const char *name;
   const char *description;
@@ -178,6 +194,9 @@ static struct {
   { "p", "Evaluate expression: p EXPR", cmd_p },
   { "w", "Set a watchpoint: w EXPR", cmd_w },
   { "d", "Delete a watchpoint: d N", cmd_d },
+#ifdef CONFIG_CYCLE_ACCURATE
+  { "pl", "Run in cycle-accurate pipeline mode: pl [N]", cmd_pipeline },
+#endif
 };
 
 #define NR_CMD ARRLEN(cmd_table)

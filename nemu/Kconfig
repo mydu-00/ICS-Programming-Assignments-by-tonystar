@@ -223,6 +223,16 @@ config WATCHPOINT
   bool "Enable watchpoint support"
   default y
 
+config CYCLE_ACCURATE
+  bool "Enable cycle-accurate pipeline model"
+  default n
+  help
+    Enable a cycle-accurate 5-stage pipeline simulator with cache
+    hierarchy (L1 I-cache + D-cache) and branch prediction (2-bit
+    BHT + BTB). This models pipeline stalls, data forwarding, and
+    branch misprediction penalties to provide IPC/CPI statistics.
+    Use the 'p' command in the monitor to run in pipeline mode.
+
 endmenu
 
 if MODE_SYSTEM
