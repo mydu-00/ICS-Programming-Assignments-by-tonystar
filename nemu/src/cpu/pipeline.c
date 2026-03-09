@@ -400,6 +400,19 @@ static void stage_ex(void) {
 
   if (!in->valid) { out->valid = false; return; }
 
+  /*
+   * 重要: 先做数据前递, 再往 out (= &pipe.ex_mem) 写字段!
+   * 因为 forward_value 读取 pipe.ex_mem 做 EX->EX 前递,
+   * 如果先写了 out->, pipe.ex_mem 就被覆盖为当前指令的值了。
+   */
+  word_t src1 = forward_value(in->rs1, in->rs1_val);
+  word_t src2_fwd = forward_value(in->rs2, in->rs2_val);
+
+  if (perf.instructions < 30)
+    printf("  EX pc=" FMT_WORD " inst=%08x rs1=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ") rs2=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ")\n",
+           in->pc, in->inst, in->rs1, in->rs1_val, src1, in->rs2, in->rs2_val, src2_fwd);
+
+  /* 现在可以安全写 out */
   out->valid     = true;
   out->pc        = in->pc;
   out->inst      = in->inst;
@@ -411,16 +424,8 @@ static void stage_ex(void) {
   out->mem_signed = in->mem_signed;
   out->is_branch_or_jump = in->branch || in->jump;
 
-  word_t src1 = forward_value(in->rs1, in->rs1_val);
-  word_t src2;
-
-  if (perf.instructions < 30)
-    printf("  EX pc=" FMT_WORD " inst=%08x rs1=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ") rs2=x%d(reg=" FMT_WORD ")\n",
-           in->pc, in->inst, in->rs1, in->rs1_val, src1, in->rs2, in->rs2_val);
-
   if (in->branch) {
-    src2 = forward_value(in->rs2, in->rs2_val);
-    out->branch_taken = evaluate_branch(in->alu_op, src1, src2);
+    out->branch_taken = evaluate_branch(in->alu_op, src1, src2_fwd);
     out->branch_target = out->branch_taken ? (in->pc + in->imm) : (in->pc + 4);
     out->alu_result = 0;
   } else if (in->jump) {
@@ -433,8 +438,7 @@ static void stage_ex(void) {
   } else {
     uint32_t opcode = OPCODE(in->inst);
     if (opcode == OP_ALU) {
-      src2 = forward_value(in->rs2, in->rs2_val);
-      out->alu_result = execute_alu(in->alu_op, src1, src2, in->pc);
+      out->alu_result = execute_alu(in->alu_op, src1, src2_fwd, in->pc);
     } else {
       out->alu_result = execute_alu(in->alu_op, src1, in->imm, in->pc);
     }
@@ -443,7 +447,7 @@ static void stage_ex(void) {
   }
 
   if (in->mem_write) {
-    out->store_data = forward_value(in->rs2, in->rs2_val);
+    out->store_data = src2_fwd;
   } else {
     out->store_data = 0;
   }
