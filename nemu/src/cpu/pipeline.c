@@ -302,6 +302,9 @@ static bool stage_wb(void) {
   if (!in->valid) return false;
 
   if (in->reg_write && in->rd != 0) {
+    if (perf.instructions < 30)
+      printf("  WB[%3" PRIu64 "] pc=" FMT_WORD " rd=x%d <- " FMT_WORD "\n",
+             perf.instructions, in->pc, in->rd, in->result);
     cpu.gpr[in->rd] = in->result;
   }
   cpu.gpr[0] = 0;
@@ -398,6 +401,10 @@ static void stage_ex(void) {
 
   word_t src1 = forward_value(in->rs1, in->rs1_val);
   word_t src2;
+
+  if (perf.instructions < 30)
+    printf("  EX pc=" FMT_WORD " inst=%08x rs1=x%d(reg=" FMT_WORD ",fwd=" FMT_WORD ") rs2=x%d(reg=" FMT_WORD ")\n",
+           in->pc, in->inst, in->rs1, in->rs1_val, src1, in->rs2, in->rs2_val);
 
   if (in->branch) {
     src2 = forward_value(in->rs2, in->rs2_val);
