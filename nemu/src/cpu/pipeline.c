@@ -246,7 +246,12 @@ static bool evaluate_branch(int br_op, word_t src1, word_t src2) {
 /* ================================================================
  * 数据前递 (forwarding)
  * EX->EX (最新, 高优先) > MEM->EX
+ *
+ * 注意: MEM->EX 使用 saved_mem_wb (WB 刚退休的那条指令的结果),
+ * 因为 stage_mem 在 stage_ex 之前运行, 已经把 mem_wb 覆写为新值。
  * ================================================================ */
+static PipeLatch_MEM_WB saved_mem_wb;  /* 在 pipeline_cycle 中保存 */
+
 static word_t forward_value(int rs, word_t reg_val) {
   if (rs == 0) return 0;
 
@@ -257,10 +262,10 @@ static word_t forward_value(int rs, word_t reg_val) {
     return pipe.ex_mem.alu_result;
   }
 
-  /* MEM->EX: 来自 MEM/WB latch */
-  if (pipe.mem_wb.valid && pipe.mem_wb.reg_write &&
-      pipe.mem_wb.rd == rs && pipe.mem_wb.rd != 0) {
-    return pipe.mem_wb.result;
+  /* MEM->EX: 来自上一轮 MEM/WB latch (WB 刚退休的那条指令) */
+  if (saved_mem_wb.valid && saved_mem_wb.reg_write &&
+      saved_mem_wb.rd == rs && saved_mem_wb.rd != 0) {
+    return saved_mem_wb.result;
   }
 
   return reg_val;
@@ -601,6 +606,7 @@ bool pipeline_cycle(void) {
   pipe.flush_id = false;
 
   bool retired = stage_wb();
+  saved_mem_wb = pipe.mem_wb;  /* 保存给 forward_value 的 MEM->EX 路径 */
   stage_mem();
   stage_ex();
   check_branch_prediction();
