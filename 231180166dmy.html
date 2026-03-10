@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>PA4 &#x5b9e;&#x9a8c;&#x62a5;&#x544a;</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="pa4-实验报告">PA4 实验报告</h1>
+<p>231180166 杜明阳</p>
+<h2 id="实验进度">实验进度</h2>
+<p>大部分任务已经完成。</p>
+<h2 id="1-分时多任务的具体过程">1. 分时多任务的具体过程</h2>
+<p>目标：让 PAL(仙剑奇侠传) 与 hello 内核线程在 Nanos-lite/AM/NEMU 上交替运行。</p>
+<ul>
+<li>
+<p>上下文(Context)的创建与表示</p>
+<ul>
+<li>内核线程：在 PCB 的内核栈上用 <code>kcontext()</code> 构造，设置 <code>mepc=entry</code>，<code>mstatus.MPP=11b</code>，并把第一个参数放到 a0(x10)（见 <code>abstract-machine/am/src/riscv/nemu/cte.c</code>）。</li>
+<li>用户进程：在 PCB 的内核栈上用 <code>ucontext()</code> 构造，设置 <code>mepc=entry</code>，<code>mstatus.MPP=11b</code>，<code>pdir</code>(若启用 VME)；由 <code>context_uload()</code> 分配一片新的用户栈(例如 <code>new_page(8)</code> → 32KB)，在其顶部按约定布置 <code>[argc][argv...][NULL][envp...][NULL]</code> 和字符串区，将“argc 的地址”放入 <code>GPRx</code>(a0)。用户态 <code>_start</code> 把 <code>sp←a0</code> 并 <code>jal call_main</code>，<code>crt0.c</code> 再解析出 <code>argc/argv/envp</code>。</li>
+</ul>
+</li>
+<li>
+<p>陷入与保存现场</p>
+<ul>
+<li>线程/进程执行 <code>yield()</code> 或执行设备访问前的 <code>yield()</code> → <code>ecall</code>。</li>
+<li>硬件跳到 <code>mtvec=__am_asm_trap</code>（<code>abstract-machine/am/src/riscv/nemu/trap.S</code>），将 GPR 全部 <code>PUSH</code> 到当前栈，读取 <code>mcause/mstatus/mepc</code> 存入 Context。</li>
+<li>调用 <code>__am_irq_handle(Context *c)</code>（<code>cte.c</code>），根据寄存器判断：
+<ul>
+<li><code>ECALL</code> 且 <code>a7/-1</code> → <code>EVENT_YIELD</code></li>
+<li>定时器中断 → <code>EVENT_IRQ_TIMER</code>（native 下可能出现）</li>
+<li>系统调用 → <code>EVENT_SYSCALL</code></li>
+</ul>
+</li>
+<li>对 <code>YIELD/SYSCALL</code>：<code>c-&gt;mepc += 4</code> 跳过 <code>ecall</code>。</li>
+</ul>
+</li>
+<li>
+<p>调度点与选择新上下文</p>
+<ul>
+<li>Nanos-lite 的 <code>irq.c/do_event()</code> 收到 <code>EVENT_YIELD</code> 调用 <code>schedule(c)</code>。</li>
+<li><code>schedule()</code> 将当前 PCB 的 <code>cp</code> 保存为 <code>prev</code>，选择下一个 PCB（示例为双 PCB 轮转，或以 idle 兜底），返回目标 PCB 的 <code>cp</code>。</li>
+</ul>
+</li>
+<li>
+<p>恢复与切换</p>
+<ul>
+<li><code>__am_irq_handle</code> 返回“新的 Context 指针”到 <code>trap.S</code>。</li>
+<li><code>trap.S</code> 执行 <code>mv sp, a0</code> 把栈指针切换到“目标 PCB 的内核栈上的 Context”，随后 <code>POP</code> 恢复寄存器，<code>LOAD</code> <code>mstatus/mepc</code>，<code>mret</code> 跳转到目标的 <code>mepc</code>。</li>
+<li>若目标为内核线程：从 <code>entry</code> 开始或从 <code>yield</code> 之后继续。</li>
+<li>若目标为用户进程：<code>mepc=用户入口</code>，用户态 <code>_start</code> 先 <code>sp←a0</code>，再进入 <code>main(argc, argv, envp)</code>。</li>
+</ul>
+</li>
+<li>
+<p>定时器与协作让出</p>
+<ul>
+<li>本 PA 中主要通过协作式 <code>yield()</code> 实现切换（hello 每次循环，设备接口 <code>serial_write()/events_read()/fb_write()</code> 开头也 <code>yield()</code>），因此 PAL 在 I/O 时会让出 CPU。</li>
+<li>在 native 环境可收到 <code>EVENT_IRQ_TIMER</code>，示例中识别后直接返回当前上下文，不做强制抢占。</li>
+</ul>
+</li>
+<li>
+<p>分页(VME)与地址空间（如启用）</p>
+<ul>
+<li><code>vme_init()</code> 建好内核页目录 <code>kas</code> 并 <code>satp←kas</code>；<code>protect(as)</code> 为进程创建顶级页表，拷贝内核映射；<code>map()</code> 建 VA→PA 映射。</li>
+<li>切换时机在 <code>__am_switch(Context *c)</code> 中 <code>set_satp(c-&gt;pdir)</code>，由 <code>__am_irq_handle</code>/恢复流程间接触发。</li>
+<li>作用：隔离用户/内核地址空间，保证 PAL 只能访问自己的代码/数据/栈；本 PA 可先不启用，逻辑保持一致。</li>
+</ul>
+</li>
+</ul>
+<p>结果：hello 频繁 <code>yield()</code>，PAL 在 I/O 前 <code>yield()</code>，两者在 <code>schedule()</code> 的选择下交替执行，达成分时多任务。</p>
+<h2 id="2-字符串写保护机制的实现与验证">2. 字符串写保护机制的实现与验证</h2>
+<p>示例程序：</p>
+<pre><code class="language-c"><span class="hljs-type">int</span> <span class="hljs-title function_">main</span><span class="hljs-params">()</span> {
+  <span class="hljs-type">char</span> *p = <span class="hljs-string">&quot;abc&quot;</span>;
+  p[<span class="hljs-number">0</span>] = <span class="hljs-string">&#x27;A&#x27;</span>;
+  <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;
+}
+</code></pre>
+<p>现象：运行触发“段错误”（SIGSEGV）。</p>
+<p>分层分析：</p>
+<ul>
+<li>程序与编译器
+<ul>
+<li>字符串字面量存放在只读段 <code>.rodata</code>。<code>char *p = &quot;abc&quot;</code> 让 <code>p</code> 指向 <code>.rodata</code> 中的常量区；对其写入是未定义行为，现代系统通过内存保护使其必然失败。</li>
+</ul>
+</li>
+<li>链接器与可执行文件
+<ul>
+<li>链接器将 <code>.text</code>、<code>.rodata</code>、<code>.data/.bss</code> 打包为 ELF Program Header 的 <code>PT_LOAD</code> 段，并设置权限标志：
+<ul>
+<li><code>.text</code> → PF_R|PF_X</li>
+<li><code>.rodata</code> → PF_R</li>
+<li><code>.data</code> → PF_R|PF_W</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>运行时/加载器
+<ul>
+<li>动态加载器或内核加载可执行文件时，根据 Program Header 用 <code>mmap</code> 将段映射到进程地址空间，并据此设置页权限（只读、可写、可执行）。</li>
+</ul>
+</li>
+<li>操作系统与硬件
+<ul>
+<li>硬件分页(PTE)保存每页的权限位（x86: R/W, U/S, XD；RISC-V: R/W/X/U）。</li>
+<li>当执行 <code>p[0] = 'A'</code> 时，CPU 进行一次对 <code>.rodata</code> 页的写访问：
+<ul>
+<li>页存在，但 PTE 无写权限 → 触发页保护异常（x86 的 #PF，错误码表明保护违规；RISC-V 的 Store/AMO page fault，mcause=15）。</li>
+</ul>
+</li>
+<li>OS 的页故障处理器判断该地址/权限非法，向进程发送 <code>SIGSEGV</code>（典型为 <code>SEGV_ACCERR</code>），默认动作终止进程 → “Segmentation fault”。</li>
+</ul>
+</li>
+</ul>
+<p>如何证明：</p>
+<ul>
+<li>观察段权限
+<ul>
+<li>readelf/objdump：
+<ul>
+<li><code>readelf -S a.out</code> 查看 <code>.rodata</code></li>
+<li><code>readelf -l a.out</code> 查看 <code>PT_LOAD</code> 段的 <code>R/E/W</code> 标志</li>
+<li><code>objdump -h a.out</code> 查看节布局</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>观察进程映射
+<ul>
+<li>运行前 <code>ulimit -c unlimited</code> 生成 core，或在 gdb 中运行</li>
+<li>在断点/崩溃处 <code>cat /proc/$(pidof a.out)/maps</code>，可见 <code>.text</code>、<code>.rodata</code> 的权限分别为 <code>r-xp</code>、<code>r--p</code></li>
+</ul>
+</li>
+<li>触发点与异常
+<ul>
+<li>gdb：
+<ul>
+<li><code>gcc -O0 -g segv.c -o segv</code></li>
+<li><code>gdb ./segv</code></li>
+<li><code>b main</code>/<code>r</code>，<code>ni</code> 到 <code>p[0]='A'</code></li>
+<li>观察崩溃信号：<code>Program received signal SIGSEGV, Segmentation fault.</code></li>
+<li>x86_64 可 <code>disas</code> 看到 <code>movb</code> 写指令；RISC-V 可见 <code>sb aX,0(aY)</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>系统调用轨迹
+<ul>
+<li><code>strace ./segv</code> 可见进程收到 <code>SIGSEGV</code> 并由默认处理器终止；<code>dmesg</code>/<code>journalctl -k</code> 可看到内核报告的页故障信息（含地址、错误码）。</li>
+</ul>
+</li>
+</ul>
+<p>保障机制总结：链接器标记只读段 → 加载器以只读方式映射 → OS 建立只读页表 → 硬件在写访问时强制触发页故障 → OS 送达 SIGSEGV。多层共同保证对字符串常量的写会失败，从而保护代码与常量数据的只读性。</p>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>
